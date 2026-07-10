@@ -103,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.asset(
-                          'lib/assets/images/logo.png',
+                          'lib/assets/images/nikah_link_icon.png',
                           width: width * 0.34,
                           height: width * 0.34,
                         ),
