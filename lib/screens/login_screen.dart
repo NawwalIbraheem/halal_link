@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../services/auth_api_service.dart';
 import '../utils/auth_input_utils.dart';
 import 'forgot_password_screen.dart';
 import 'profile_setup_basic_info_screen.dart';
@@ -16,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
+  bool _isNavigating = false;
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -27,14 +29,51 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_isNavigating) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     if (_formKey.currentState!.validate()) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const ProfileSetupBasicInfoScreen(),
-        ),
-      );
+      setState(() {
+        _isNavigating = true;
+      });
+      try {
+        await AuthApiService.login(
+          identifier: _identifierController.text,
+          password: _passwordController.text,
+        );
+        if (!mounted) {
+          return;
+        }
+        Navigator.of(context)
+            .push(
+              MaterialPageRoute(
+                builder: (_) => const ProfileSetupBasicInfoScreen(),
+              ),
+            )
+            .then((_) {
+              if (!mounted) {
+                return;
+              }
+              setState(() {
+                _isNavigating = false;
+              });
+            });
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _isNavigating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
     }
   }
 

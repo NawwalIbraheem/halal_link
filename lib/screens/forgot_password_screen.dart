@@ -14,6 +14,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
+  bool _isNavigating = false;
 
   @override
   void dispose() {
@@ -22,10 +23,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   void _openEmailResetPlaceholder() {
+    if (_isNavigating) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    setState(() {
+      _isNavigating = true;
+    });
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const ResetFlowPlaceholderScreen(
@@ -37,10 +45,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           icon: Icons.mark_email_read_outlined,
         ),
       ),
-    );
+    ).then((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isNavigating = false;
+      });
+    });
   }
 
   void _openOtpResetPlaceholder() {
+    if (_isNavigating) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) {
       return;
@@ -55,6 +74,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
       return;
     }
+    setState(() {
+      _isNavigating = true;
+    });
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const ResetFlowPlaceholderScreen(
@@ -66,7 +88,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           icon: Icons.sms_outlined,
         ),
       ),
-    );
+    ).then((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isNavigating = false;
+      });
+    });
   }
 
   @override

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/profile_setup_options.dart';
+import '../services/profile_api_service.dart';
+import '../utils/auth_session_store.dart';
 import 'profile_setup_islamic_profile_screen.dart';
 
 class ProfileSetupBasicInfoScreen extends StatefulWidget {
@@ -23,22 +26,33 @@ class ProfileSetupBasicInfoScreen extends StatefulWidget {
 
 class _ProfileSetupBasicInfoScreenState
     extends State<ProfileSetupBasicInfoScreen> {
+  final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
-  final _locationController = TextEditingController();
-  final _educationController = TextEditingController();
-  final _occupationController = TextEditingController();
-  final _languagesController = TextEditingController();
 
   DateTime? _selectedDate;
+  String? _selectedLocation;
+  String? _selectedEducationLevel;
+  String? _selectedOccupation;
+  final Set<String> _selectedLanguages = <String>{};
+  bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.fullName);
-    _phoneController = TextEditingController(text: widget.phoneNumber);
-    _emailController = TextEditingController(text: widget.email);
+    _nameController = TextEditingController(
+      text: (AuthSessionStore.user['full_name'] as String?) ?? widget.fullName,
+    );
+    _phoneController = TextEditingController(
+      text:
+          (AuthSessionStore.user['phone_number'] as String?) ??
+          widget.phoneNumber,
+    );
+    _emailController = TextEditingController(
+      text: (AuthSessionStore.user['email'] as String?) ?? widget.email,
+    );
+    _hydrateProfile();
   }
 
   @override
@@ -46,20 +60,86 @@ class _ProfileSetupBasicInfoScreenState
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
-    _locationController.dispose();
-    _educationController.dispose();
-    _occupationController.dispose();
-    _languagesController.dispose();
     super.dispose();
   }
 
+  Future<void> _hydrateProfile() async {
+    try {
+      await AuthSessionStore.load();
+      if (!mounted) {
+        return;
+      }
+      _populateFromProfile(AuthSessionStore.user);
+      final profile = await ProfileApiService.getBasicProfile();
+      if (!mounted) {
+        return;
+      }
+      _populateFromProfile(profile);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      _populateFromProfile(AuthSessionStore.user);
+    }
+  }
+
+  void _populateFromProfile(Map<String, dynamic> profile) {
+    final languagesValue = (profile['languages'] as String? ?? '').trim();
+    final parsedLanguages = languagesValue.isEmpty
+        ? <String>{}
+        : languagesValue
+              .split(',')
+              .map((language) => language.trim())
+              .where((language) => language.isNotEmpty)
+              .toSet();
+
+    final dateText = profile['date_of_birth']?.toString() ?? '';
+    final parsedDate = dateText.isEmpty ? null : DateTime.tryParse(dateText);
+
+    setState(() {
+      _nameController.text =
+          (profile['full_name'] as String? ?? _nameController.text).trim();
+      _phoneController.text =
+          (profile['phone_number'] as String? ?? _phoneController.text).trim();
+      _emailController.text =
+          (profile['email'] as String? ?? _emailController.text).trim();
+      _selectedDate = parsedDate ?? _selectedDate;
+      _selectedLocation = _normalizeDropdownValue(
+        profile['location'] as String?,
+        ProfileSetupOptions.eastAfricanRegions,
+      );
+      _selectedEducationLevel = _normalizeDropdownValue(
+        profile['education'] as String?,
+        ProfileSetupOptions.educationLevels,
+      );
+      _selectedOccupation = _normalizeDropdownValue(
+        profile['occupation'] as String?,
+        ProfileSetupOptions.occupations,
+      );
+      _selectedLanguages
+        ..clear()
+        ..addAll(parsedLanguages);
+    });
+  }
+
+  String? _normalizeDropdownValue(String? rawValue, List<String> items) {
+    final trimmedValue = rawValue?.trim() ?? '';
+    if (trimmedValue.isEmpty) {
+      return null;
+    }
+
+    return items.contains(trimmedValue) ? trimmedValue : null;
+  }
+
   Future<void> _pickDate() async {
+    FocusScope.of(context).unfocus();
     final latestAllowedDate = DateTime.now().subtract(
       const Duration(days: 365 * 18),
     );
+
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? latestAllowedDate,
+      initialDate: _selectedDate ?? DateTime(1998, 1, 1),
       firstDate: DateTime(1950),
       lastDate: latestAllowedDate,
       builder: (context, child) {
@@ -77,141 +157,211 @@ class _ProfileSetupBasicInfoScreenState
       },
     );
 
-    if (pickedDate != null) {
-      setState(() {
-        _selectedDate = pickedDate;
-      });
+    if (!mounted || pickedDate == null) {
+      return;
     }
+
+    setState(() {
+      _selectedDate = pickedDate;
+    });
   }
 
-  Future<void> _editTextField({
-    required String title,
-    required String hintText,
-    required TextEditingController controller,
-    TextCapitalization textCapitalization = TextCapitalization.sentences,
-    TextInputType keyboardType = TextInputType.text,
-  }) async {
-    final draftController = TextEditingController(text: controller.text);
+  Future<void> _pickLanguages() async {
+    FocusScope.of(context).unfocus();
+    final tempSelection = Set<String>.from(_selectedLanguages);
+    var searchQuery = '';
 
-    final updatedValue = await showModalBottomSheet<String>(
+    final result = await showModalBottomSheet<Set<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredLanguages = ProfileSetupOptions.languages
+                .where(
+                  (language) => language.toLowerCase().contains(
+                    searchQuery.toLowerCase().trim(),
+                  ),
+                )
+                .toList();
 
-        return Padding(
-          padding: EdgeInsets.only(bottom: viewInsets),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Color(0xfffcfbf7),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 48,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xffd8d2c7),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xff202124),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Update your basic info so your profile feels complete and trustworthy.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.45,
-                    color: Color(0xff6a6f73),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                TextField(
-                  controller: draftController,
-                  textCapitalization: textCapitalization,
-                  keyboardType: keyboardType,
-                  autofocus: true,
-                  maxLines: title == 'Languages' ? 2 : 1,
-                  decoration: InputDecoration(
-                    hintText: hintText,
-                    hintStyle: const TextStyle(
-                      color: Color(0xff8d9398),
-                      fontSize: 14,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xffddd8cb)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(
-                        color: AppColors.primaryGreen,
-                        width: 1.3,
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.82,
+              decoration: const BoxDecoration(
+                color: Color(0xfffbfbf7),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xffd6d0c2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Select languages',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xff202124),
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: Color(0xff6d7378),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        onChanged: (value) {
+                          setModalState(() {
+                            searchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search languages',
+                          hintStyle: const TextStyle(
+                            color: Color(0xff9aa0a6),
+                            fontSize: 14,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: Color(0xff6d7378),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xffe1dccf),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryGreen,
+                              width: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: const Color(0xffe4dfd3)),
+                          ),
+                          child: ListView.separated(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: filteredLanguages.length,
+                            separatorBuilder: (_, _) => const Divider(
+                              height: 1,
+                              color: Color(0xffefeadf),
+                            ),
+                            itemBuilder: (context, index) {
+                              final language = filteredLanguages[index];
+                              final isSelected = tempSelection.contains(
+                                language,
+                              );
+                              return CheckboxListTile(
+                                value: isSelected,
+                                activeColor: AppColors.primaryGreen,
+                                checkboxShape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                title: Text(
+                                  language,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xff202124),
+                                  ),
+                                ),
+                                onChanged: (_) {
+                                  setModalState(() {
+                                    if (isSelected) {
+                                      tempSelection.remove(language);
+                                    } else {
+                                      tempSelection.add(language);
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              Navigator.of(context).pop(tempSelection),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Save languages',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(draftController.text.trim());
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryGreen,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text(
-                      'Save changes',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
 
-    draftController.dispose();
-
-    if (updatedValue != null && updatedValue.isNotEmpty) {
-      setState(() {
-        controller.text = updatedValue;
-      });
+    if (!mounted || result == null) {
+      return;
     }
+
+    setState(() {
+      _selectedLanguages
+        ..clear()
+        ..addAll(result);
+    });
   }
 
   String get _formattedBirthDate {
@@ -239,132 +389,76 @@ class _ProfileSetupBasicInfoScreenState
         '${_selectedDate!.year}';
   }
 
-  bool get _hasRequiredFields {
-    return _nameController.text.trim().isNotEmpty &&
-        _phoneController.text.trim().isNotEmpty &&
-        _selectedDate != null &&
-        _locationController.text.trim().isNotEmpty &&
-        _educationController.text.trim().isNotEmpty &&
-        _occupationController.text.trim().isNotEmpty &&
-        _languagesController.text.trim().isNotEmpty;
-  }
+  Future<void> _continueToNextStep() async {
+    if (_isNavigating) {
+      return;
+    }
 
-  void _continueToNextStep() {
     FocusScope.of(context).unfocus();
+    final formValid = _formKey.currentState!.validate();
+    final hasDate = _selectedDate != null;
+    final hasLanguages = _selectedLanguages.isNotEmpty;
 
-    if (!_hasRequiredFields) {
+    if (!formValid || !hasDate || !hasLanguages) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please complete all profile details before continuing.'),
+          content: Text('Please complete all required profile details.'),
         ),
       );
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const ProfileSetupIslamicProfileScreen(),
-      ),
-    );
+    setState(() {
+      _isNavigating = true;
+    });
+
+    try {
+      await ProfileApiService.updateBasicProfile(
+        fullName: _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        dateOfBirth:
+            '${_selectedDate!.year.toString().padLeft(4, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.day.toString().padLeft(2, '0')}',
+        location: _selectedLocation ?? '',
+        education: _selectedEducationLevel ?? '',
+        occupation: _selectedOccupation ?? '',
+        languages: _selectedLanguages.toList()..sort(),
+      );
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (_) => const ProfileSetupIslamicProfileScreen(),
+            ),
+          )
+          .then((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _isNavigating = false;
+            });
+          });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isNavigating = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
-
-    final items = [
-      _BasicInfoItem(
-        icon: Icons.person_outline,
-        label: 'Full name',
-        value: _nameController.text,
-        placeholder: 'Enter your full name',
-        onTap: () => _editTextField(
-          title: 'Full name',
-          hintText: 'Enter your full name',
-          controller: _nameController,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.phone_outlined,
-        label: 'Phone number',
-        value: _phoneController.text,
-        placeholder: 'Enter your phone number',
-        onTap: () => _editTextField(
-          title: 'Phone number',
-          hintText: 'Enter your phone number',
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.mail_outline,
-        label: 'Email',
-        value: _emailController.text,
-        placeholder: 'Enter your email address',
-        onTap: () => _editTextField(
-          title: 'Email',
-          hintText: 'Enter your email address',
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.cake_outlined,
-        label: 'Date of birth',
-        value: _formattedBirthDate,
-        placeholder: 'Select your date of birth',
-        onTap: _pickDate,
-      ),
-      _BasicInfoItem(
-        icon: Icons.location_on_outlined,
-        label: 'Location',
-        value: _locationController.text,
-        placeholder: 'Enter your city and country',
-        onTap: () => _editTextField(
-          title: 'Location',
-          hintText: 'Enter your city and country',
-          controller: _locationController,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.school_outlined,
-        label: 'Education',
-        value: _educationController.text,
-        placeholder: 'Enter your education level',
-        onTap: () => _editTextField(
-          title: 'Education',
-          hintText: 'Enter your education level',
-          controller: _educationController,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.work_outline,
-        label: 'Occupation',
-        value: _occupationController.text,
-        placeholder: 'Enter your occupation',
-        onTap: () => _editTextField(
-          title: 'Occupation',
-          hintText: 'Enter your occupation',
-          controller: _occupationController,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ),
-      _BasicInfoItem(
-        icon: Icons.translate_outlined,
-        label: 'Languages',
-        value: _languagesController.text,
-        placeholder: 'Example: Swahili, English, Arabic',
-        onTap: () => _editTextField(
-          title: 'Languages',
-          hintText: 'Example: Swahili, English, Arabic',
-          controller: _languagesController,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ),
-    ];
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -373,19 +467,13 @@ class _ProfileSetupBasicInfoScreenState
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xfffbfbf7),
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xfffdfdfb), Color(0xfff6f1e7)],
-            ),
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 16),
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, bottomInset + 16),
+            child: Form(
+              key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -458,7 +546,7 @@ class _ProfileSetupBasicInfoScreenState
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Photo upload can be connected after we add media support.',
+                              'Photo upload can be connected after media support is added.',
                             ),
                           ),
                         );
@@ -474,10 +562,7 @@ class _ProfileSetupBasicInfoScreenState
                               gradient: const LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0xffece8df),
-                                  Color(0xffdfd8ca),
-                                ],
+                                colors: [Color(0xffece8df), Color(0xffdfd8ca)],
                               ),
                               border: Border.all(
                                 color: const Color(0xffddd8cb),
@@ -497,10 +582,11 @@ class _ProfileSetupBasicInfoScreenState
                                   radius: 32,
                                   backgroundColor: const Color(0xfff9f7f2),
                                   child: Text(
-                                    _nameController.text.isEmpty
+                                    _nameController.text.trim().isEmpty
                                         ? '+'
-                                        : _nameController.text.trim()[0]
-                                            .toUpperCase(),
+                                        : _nameController.text
+                                              .trim()[0]
+                                              .toUpperCase(),
                                     style: const TextStyle(
                                       fontSize: 28,
                                       fontWeight: FontWeight.w700,
@@ -547,6 +633,7 @@ class _ProfileSetupBasicInfoScreenState
                   ),
                   const SizedBox(height: 24),
                   Container(
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
@@ -560,17 +647,109 @@ class _ProfileSetupBasicInfoScreenState
                       ],
                     ),
                     child: Column(
-                      children: items
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => _ProfileInfoTile(
-                              item: entry.value,
-                              isFirst: entry.key == 0,
-                              isLast: entry.key == items.length - 1,
-                            ),
-                          )
-                          .toList(),
+                      children: [
+                        _ReadOnlyProfileField(
+                          label: 'Full name',
+                          controller: _nameController,
+                          icon: Icons.person_outline,
+                          fallbackText: 'Saved from your account',
+                        ),
+                        const SizedBox(height: 14),
+                        _ReadOnlyProfileField(
+                          label: 'Phone number',
+                          controller: _phoneController,
+                          icon: Icons.phone_outlined,
+                          fallbackText: 'Saved from your account',
+                        ),
+                        const SizedBox(height: 14),
+                        _ReadOnlyProfileField(
+                          label: 'Email',
+                          controller: _emailController,
+                          icon: Icons.mail_outline,
+                          fallbackText: 'Saved from your account',
+                        ),
+                        const SizedBox(height: 14),
+                        _DateField(
+                          label: 'Date of birth',
+                          value: _formattedBirthDate,
+                          onTap: _pickDate,
+                          validator: () {
+                            if (_selectedDate == null) {
+                              return 'Select your date of birth';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _DropdownField(
+                          label: 'Location',
+                          value: _selectedLocation,
+                          items: ProfileSetupOptions.eastAfricanRegions,
+                          hintText: 'Select your region',
+                          icon: Icons.location_on_outlined,
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedLocation = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Select your location';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _DropdownField(
+                          label: 'Education level',
+                          value: _selectedEducationLevel,
+                          items: ProfileSetupOptions.educationLevels,
+                          hintText: 'Select your education level',
+                          icon: Icons.school_outlined,
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedEducationLevel = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Select your education level';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _DropdownField(
+                          label: 'Occupation',
+                          value: _selectedOccupation,
+                          items: ProfileSetupOptions.occupations,
+                          hintText: 'Select your occupation',
+                          icon: Icons.work_outline,
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedOccupation = value;
+                            });
+                          },
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Select your occupation';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        _LanguageField(
+                          selectedLanguages: _selectedLanguages.toList()
+                            ..sort(),
+                          onTap: _pickLanguages,
+                          validator: () {
+                            if (_selectedLanguages.isEmpty) {
+                              return 'Select at least one language';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -592,7 +771,7 @@ class _ProfileSetupBasicInfoScreenState
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Use your real details here. Clear profiles usually feel safer and get better responses.',
+                            'Your account details are already carried from signup. Add the rest of your profile here so we can match you better.',
                             style: TextStyle(
                               fontSize: 13,
                               height: 1.45,
@@ -661,97 +840,353 @@ class _ProfileSetupBasicInfoScreenState
   }
 }
 
-class _ProfileInfoTile extends StatelessWidget {
-  const _ProfileInfoTile({
-    required this.item,
-    required this.isFirst,
-    required this.isLast,
+class _ReadOnlyProfileField extends StatelessWidget {
+  const _ReadOnlyProfileField({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    required this.fallbackText,
   });
 
-  final _BasicInfoItem item;
-  final bool isFirst;
-  final bool isLast;
+  final String label;
+  final TextEditingController controller;
+  final IconData icon;
+  final String fallbackText;
 
   @override
   Widget build(BuildContext context) {
-    final hasValue = item.value.trim().isNotEmpty;
+    final hasValue = controller.text.trim().isNotEmpty;
 
-    return InkWell(
-      onTap: item.onTap,
-      borderRadius: BorderRadius.vertical(
-        top: isFirst ? const Radius.circular(18) : Radius.zero,
-        bottom: isLast ? const Radius.circular(18) : Radius.zero,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          border: isLast
-              ? null
-              : const Border(bottom: BorderSide(color: Color(0xffefeadf))),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xff7a7f84),
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: const Color(0xfff6f3eb),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(item.icon, size: 18, color: AppColors.primaryGreen),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          readOnly: true,
+          decoration: InputDecoration(
+            hintText: fallbackText,
+            hintStyle: const TextStyle(color: Color(0xff9aa0a6), fontSize: 14),
+            filled: true,
+            fillColor: const Color(0xfff7f4ed),
+            prefixIcon: Icon(icon, color: AppColors.primaryGreen, size: 20),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 16,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xff7a7f84),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    hasValue ? item.value : item.placeholder,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: hasValue
-                          ? const Color(0xff202124)
-                          : const Color(0xff9aa0a6),
-                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffe1dccf)),
             ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xff91979c),
-              size: 22,
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffe1dccf)),
             ),
-          ],
+          ),
+          style: TextStyle(
+            color: hasValue ? const Color(0xff202124) : const Color(0xff889097),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-class _BasicInfoItem {
-  const _BasicInfoItem({
-    required this.icon,
+class _DropdownField extends StatelessWidget {
+  const _DropdownField({
     required this.label,
     required this.value,
-    required this.placeholder,
-    required this.onTap,
+    required this.items,
+    required this.hintText,
+    required this.icon,
+    required this.onChanged,
+    required this.validator,
   });
 
-  final IconData icon;
   final String label;
-  final String value;
-  final String placeholder;
-  final VoidCallback onTap;
+  final String? value;
+  final List<String> items;
+  final String hintText;
+  final IconData icon;
+  final ValueChanged<String?> onChanged;
+  final String? Function(String?) validator;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedValue = items.contains(value) ? value : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xff7a7f84),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: normalizedValue,
+          items: items.map((item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: onChanged,
+          validator: validator,
+          isExpanded: true,
+          borderRadius: BorderRadius.circular(16),
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Color(0xff697077),
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(color: Color(0xff9aa0a6), fontSize: 14),
+            filled: true,
+            fillColor: const Color(0xfffcfbf7),
+            prefixIcon: Icon(icon, color: AppColors.primaryGreen, size: 20),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 16,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffe1dccf)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: AppColors.primaryGreen,
+                width: 1.2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffc43d34)),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xffc43d34)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DateField extends FormField<String> {
+  _DateField({
+    required String label,
+    required String value,
+    required VoidCallback onTap,
+    required String? Function() validator,
+  }) : super(
+         validator: (_) => validator(),
+         builder: (state) {
+           final hasValue = value.trim().isNotEmpty;
+
+           return Column(
+             crossAxisAlignment: CrossAxisAlignment.start,
+             children: [
+               Text(
+                 label,
+                 style: const TextStyle(
+                   fontSize: 12,
+                   color: Color(0xff7a7f84),
+                   fontWeight: FontWeight.w600,
+                 ),
+               ),
+               const SizedBox(height: 8),
+               InkWell(
+                 onTap: onTap,
+                 borderRadius: BorderRadius.circular(14),
+                 child: Container(
+                   padding: const EdgeInsets.symmetric(
+                     horizontal: 14,
+                     vertical: 16,
+                   ),
+                   decoration: BoxDecoration(
+                     color: const Color(0xfffcfbf7),
+                     borderRadius: BorderRadius.circular(14),
+                     border: Border.all(
+                       color: state.hasError
+                           ? const Color(0xffc43d34)
+                           : const Color(0xffe1dccf),
+                     ),
+                   ),
+                   child: Row(
+                     children: [
+                       const Icon(
+                         Icons.cake_outlined,
+                         color: AppColors.primaryGreen,
+                         size: 20,
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: Text(
+                           hasValue ? value : 'Select your date of birth',
+                           style: TextStyle(
+                             fontSize: 14,
+                             color: hasValue
+                                 ? const Color(0xff202124)
+                                 : const Color(0xff9aa0a6),
+                             fontWeight: hasValue
+                                 ? FontWeight.w600
+                                 : FontWeight.w500,
+                           ),
+                         ),
+                       ),
+                       const Icon(
+                         Icons.chevron_right_rounded,
+                         color: Color(0xff91979c),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+               if (state.hasError) ...[
+                 const SizedBox(height: 6),
+                 Text(
+                   state.errorText!,
+                   style: const TextStyle(
+                     color: Color(0xffc43d34),
+                     fontSize: 12,
+                   ),
+                 ),
+               ],
+             ],
+           );
+         },
+       );
+}
+
+class _LanguageField extends FormField<String> {
+  _LanguageField({
+    required List<String> selectedLanguages,
+    required VoidCallback onTap,
+    required String? Function() validator,
+  }) : super(
+         validator: (_) => validator(),
+         builder: (state) {
+           final hasSelection = selectedLanguages.isNotEmpty;
+
+           return Column(
+             crossAxisAlignment: CrossAxisAlignment.start,
+             children: [
+               const Text(
+                 'Languages',
+                 style: TextStyle(
+                   fontSize: 12,
+                   color: Color(0xff7a7f84),
+                   fontWeight: FontWeight.w600,
+                 ),
+               ),
+               const SizedBox(height: 8),
+               InkWell(
+                 onTap: onTap,
+                 borderRadius: BorderRadius.circular(14),
+                 child: Container(
+                   width: double.infinity,
+                   padding: const EdgeInsets.symmetric(
+                     horizontal: 14,
+                     vertical: 16,
+                   ),
+                   decoration: BoxDecoration(
+                     color: const Color(0xfffcfbf7),
+                     borderRadius: BorderRadius.circular(14),
+                     border: Border.all(
+                       color: state.hasError
+                           ? const Color(0xffc43d34)
+                           : const Color(0xffe1dccf),
+                     ),
+                   ),
+                   child: Row(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                     children: [
+                       const Padding(
+                         padding: EdgeInsets.only(top: 1),
+                         child: Icon(
+                           Icons.translate_outlined,
+                           color: AppColors.primaryGreen,
+                           size: 20,
+                         ),
+                       ),
+                       const SizedBox(width: 12),
+                       Expanded(
+                         child: hasSelection
+                             ? Wrap(
+                                 spacing: 8,
+                                 runSpacing: 8,
+                                 children: selectedLanguages.map((language) {
+                                   return Container(
+                                     padding: const EdgeInsets.symmetric(
+                                       horizontal: 10,
+                                       vertical: 6,
+                                     ),
+                                     decoration: BoxDecoration(
+                                       color: const Color.fromRGBO(
+                                         1,
+                                         68,
+                                         51,
+                                         0.08,
+                                       ),
+                                       borderRadius: BorderRadius.circular(999),
+                                     ),
+                                     child: Text(
+                                       language,
+                                       style: const TextStyle(
+                                         fontSize: 12,
+                                         fontWeight: FontWeight.w600,
+                                         color: AppColors.primaryGreen,
+                                       ),
+                                     ),
+                                   );
+                                 }).toList(),
+                               )
+                             : const Text(
+                                 'Select the languages you speak',
+                                 style: TextStyle(
+                                   color: Color(0xff9aa0a6),
+                                   fontSize: 14,
+                                 ),
+                               ),
+                       ),
+                       const SizedBox(width: 8),
+                       const Icon(
+                         Icons.keyboard_arrow_down_rounded,
+                         color: Color(0xff697077),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+               if (state.hasError) ...[
+                 const SizedBox(height: 6),
+                 Text(
+                   state.errorText!,
+                   style: const TextStyle(
+                     color: Color(0xffc43d34),
+                     fontSize: 12,
+                   ),
+                 ),
+               ],
+             ],
+           );
+         },
+       );
 }

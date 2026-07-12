@@ -1,0 +1,219 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import '../utils/auth_session_store.dart';
+import 'api_config.dart';
+
+class ProfileApiService {
+  static Future<Map<String, dynamic>> getBasicProfile() async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/basic-info/'),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load basic profile.');
+    }
+
+    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    await AuthSessionStore.saveUser(data);
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> updateBasicProfile({
+    required String fullName,
+    required String email,
+    required String phoneNumber,
+    required String dateOfBirth,
+    required String location,
+    required String education,
+    required String occupation,
+    required List<String> languages,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/basic-info/'),
+        headers: _headers(),
+        body: jsonEncode({
+          'full_name': fullName,
+          'email': email.trim().toLowerCase(),
+          'phone_number': phoneNumber,
+          'date_of_birth': dateOfBirth,
+          'location': location,
+          'education': education,
+          'occupation': occupation,
+          'languages': languages.join(', '),
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to save basic profile.');
+    }
+
+    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    await AuthSessionStore.saveUser(data);
+    return data;
+  }
+
+  static Future<Map<String, dynamic>> getIslamicProfile() async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/islamic/'),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load Islamic profile.');
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<void> updateIslamicProfile({
+    required String prayerLevel,
+    required String quranActivity,
+    required String quranFrequency,
+    required String islamicGoals,
+    required List<String> marriageValues,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/islamic/'),
+        headers: _headers(),
+        body: jsonEncode({
+          'prayer_level': prayerLevel,
+          'quran_activity': quranActivity,
+          'quran_frequency': quranFrequency,
+          'islamic_goals': islamicGoals,
+          'marriage_values': marriageValues,
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to save Islamic profile.');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getMarriageExpectations() async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/marriage-expectations/'),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load marriage expectations.');
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<void> updateMarriageExpectations({
+    required String qualitiesLookingFor,
+    required String marriageTimeline,
+    required String childrenPreference,
+    required String preferredLivingArrangement,
+    required String familyInvolvement,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/marriage-expectations/'),
+        headers: _headers(),
+        body: jsonEncode({
+          'qualities_looking_for': qualitiesLookingFor,
+          'marriage_timeline': marriageTimeline,
+          'children_preference': childrenPreference,
+          'preferred_living_arrangement': preferredLivingArrangement,
+          'family_involvement': familyInvolvement,
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to save marriage expectations.');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getLifestyleProfile() async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/lifestyle/'),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load lifestyle profile.');
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<void> updateLifestyleProfile({
+    required String heightRange,
+    required String bodyType,
+    required String culturalBackground,
+    required String dressStyle,
+    required bool photoPrivacyMatchesOnly,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.authBaseUrl}/profile/lifestyle/'),
+        headers: _headers(),
+        body: jsonEncode({
+          'height_range': heightRange,
+          'body_type': bodyType,
+          'cultural_background': culturalBackground,
+          'dress_style': dressStyle,
+          'photo_privacy_matches_only': photoPrivacyMatchesOnly,
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to save lifestyle profile.');
+    }
+  }
+
+  static Map<String, String> _headers() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${AuthSessionStore.accessToken}',
+    };
+  }
+
+  static String _backendUnavailableMessage() {
+    return 'Cannot reach the backend at ${ApiConfig.authBaseUrl}. Start the Django server and try again.';
+  }
+}

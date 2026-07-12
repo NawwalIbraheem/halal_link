@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
-import 'profile_setup_basic_info_screen.dart';
+import '../services/auth_api_service.dart';
 import '../utils/auth_input_utils.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -34,7 +34,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final isValid = _formKey.currentState!.validate();
     if (!_agreeToTerms) {
@@ -44,15 +44,32 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
     if (isValid) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ProfileSetupBasicInfoScreen(
-            fullName: _nameController.text.trim(),
-            phoneNumber: _phoneController.text.trim(),
-            email: _emailController.text.trim(),
+      try {
+        await AuthApiService.register(
+          fullName: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          password: _passwordController.text,
+        );
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created. Please log in to continue.'),
           ),
-        ),
-      );
+        );
+        Navigator.of(context).maybePop();
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
     }
   }
 
@@ -248,7 +265,6 @@ class _SignupScreenState extends State<SignupScreen> {
                                     controller: _nameController,
                                     textCapitalization:
                                         TextCapitalization.words,
-                                    validator: AuthInputUtils.validateName,
                                   ),
                                   const SizedBox(height: 12),
                                   _AuthField(
@@ -265,12 +281,12 @@ class _SignupScreenState extends State<SignupScreen> {
                                   ),
                                   const SizedBox(height: 12),
                                   _AuthField(
-                                    hintText: 'Email (optional)',
+                                    hintText: 'Email',
                                     prefixIcon: Icons.mail_outline,
                                     controller: _emailController,
                                     keyboardType: TextInputType.emailAddress,
                                     validator:
-                                        AuthInputUtils.validateEmailOptional,
+                                        AuthInputUtils.validateEmailRequired,
                                   ),
                                   const SizedBox(height: 12),
                                   _AuthField(
