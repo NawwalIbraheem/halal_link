@@ -389,14 +389,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     ),
                                   ),
                                   const Spacer(),
-                                  Opacity(
-                                    opacity: 0.28,
-                                    child: Image.asset(
-                                      'lib/assets/images/Mosque Skyline 2.jpg',
-                                      fit: BoxFit.fitWidth,
-                                      width: double.infinity,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),

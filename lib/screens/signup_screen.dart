@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import 'profile_setup_basic_info_screen.dart';
 import '../utils/auth_input_utils.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -43,9 +44,15 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
     if (isValid) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Signup form looks good.')));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfileSetupBasicInfoScreen(
+            fullName: _nameController.text.trim(),
+            phoneNumber: _phoneController.text.trim(),
+            email: _emailController.text.trim(),
+          ),
+        ),
+      );
     }
   }
 
@@ -482,14 +489,6 @@ class _SignupScreenState extends State<SignupScreen> {
                                     ),
                                   ),
                                   const Spacer(),
-                                  Opacity(
-                                    opacity: 0.28,
-                                    child: Image.asset(
-                                      'lib/assets/images/Mosque Skyline 2.jpg',
-                                      fit: BoxFit.fitWidth,
-                                      width: double.infinity,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),

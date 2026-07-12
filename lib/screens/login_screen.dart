@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../utils/auth_input_utils.dart';
 import 'forgot_password_screen.dart';
+import 'profile_setup_basic_info_screen.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -29,9 +30,11 @@ class _LoginScreenState extends State<LoginScreen> {
   void _submit() {
     FocusScope.of(context).unfocus();
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Login form looks good.')));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ProfileSetupBasicInfoScreen(),
+        ),
+      );
     }
   }
 
@@ -374,17 +377,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   const SizedBox(height: 22),
                                   const Spacer(),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: Opacity(
-                                      opacity: 0.28,
-                                      child: Image.asset(
-                                        'lib/assets/images/Mosque Skyline 2.jpg',
-                                        fit: BoxFit.fitWidth,
-                                        width: double.infinity,
-                                      ),
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
