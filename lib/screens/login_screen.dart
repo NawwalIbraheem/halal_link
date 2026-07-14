@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 import '../services/auth_api_service.dart';
 import '../utils/auth_input_utils.dart';
+import '../utils/auth_session_store.dart';
+import 'discover_screen.dart';
 import 'forgot_password_screen.dart';
 import 'profile_setup_basic_info_screen.dart';
 import 'signup_screen.dart';
@@ -47,10 +49,17 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) {
           return;
         }
+        await AuthSessionStore.load();
+        if (!mounted) {
+          return;
+        }
+        final destination = _shouldGoToDiscover()
+            ? const DiscoverScreen()
+            : const ProfileSetupBasicInfoScreen();
         Navigator.of(context)
             .push(
               MaterialPageRoute(
-                builder: (_) => const ProfileSetupBasicInfoScreen(),
+                builder: (_) => destination,
               ),
             )
             .then((_) {
@@ -75,6 +84,14 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     }
+  }
+
+  bool _shouldGoToDiscover() {
+    final user = AuthSessionStore.user;
+    return (user['date_of_birth']?.toString().trim().isNotEmpty ?? false) &&
+        ((user['location'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['education'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['occupation'] as String? ?? '').trim().isNotEmpty);
   }
 
   @override

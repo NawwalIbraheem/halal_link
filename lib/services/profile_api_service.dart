@@ -6,6 +6,45 @@ import '../utils/auth_session_store.dart';
 import 'api_config.dart';
 
 class ProfileApiService {
+  static Future<List<Map<String, dynamic>>> getPublicAccounts() async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/accounts/public/'),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load available profiles.');
+    }
+
+    final decoded = jsonDecode(response.body) as List<dynamic>;
+    return decoded
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  static Future<Map<String, dynamic>> getPublicAccountDetail(int accountId) async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.authBaseUrl}/accounts/public/$accountId/'),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load profile details.');
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   static Future<Map<String, dynamic>> getBasicProfile() async {
     late final http.Response response;
     try {

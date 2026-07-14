@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/profile_api_service.dart';
+import 'discover_screen.dart';
 
 class ProfileSetupLifestyleScreen extends StatefulWidget {
   const ProfileSetupLifestyleScreen({super.key});
@@ -132,7 +133,10 @@ class _ProfileSetupLifestyleScreenState
           content: Text('Profile completed successfully.'),
         ),
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const DiscoverScreen()),
+        (route) => false,
+      );
     } catch (error) {
       if (!mounted) {
         return;
