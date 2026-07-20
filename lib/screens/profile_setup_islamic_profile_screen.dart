@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/profile_api_service.dart';
+import '../utils/app_snackbar.dart';
 import 'profile_setup_marriage_expectations_screen.dart';
 
 class ProfileSetupIslamicProfileScreen extends StatefulWidget {
@@ -61,8 +62,6 @@ class _ProfileSetupIslamicProfileScreenState
   @override
   void initState() {
     super.initState();
-    _goalsController.text =
-        'I want to improve my deen, learn more about Islam and build a strong Islamic family.';
     _hydrateIslamicProfile();
   }
 
@@ -96,7 +95,7 @@ class _ProfileSetupIslamicProfileScreenState
         _goalsController.text =
             (profile['islamic_goals'] as String?)?.isNotEmpty == true
             ? profile['islamic_goals'] as String
-            : _goalsController.text;
+            : '';
         _selectedValues
           ..clear()
           ..addAll(
@@ -106,7 +105,7 @@ class _ProfileSetupIslamicProfileScreenState
           );
       });
     } catch (_) {
-      // Keep the seeded defaults if nothing has been saved yet.
+      // Keep the current blank/default selections if nothing has been saved yet.
     }
   }
 
@@ -118,12 +117,9 @@ class _ProfileSetupIslamicProfileScreenState
     FocusScope.of(context).unfocus();
 
     if (_goalsController.text.trim().isEmpty || _selectedValues.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please complete your Islamic profile before continuing.',
-          ),
-        ),
+      AppSnackbar.show(
+        context,
+        'Please complete your Islamic profile before continuing.',
       );
       return;
     }
@@ -142,12 +138,9 @@ class _ProfileSetupIslamicProfileScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Islamic profile saved. Marriage expectations comes next.',
-          ),
-        ),
+      AppSnackbar.show(
+        context,
+        'Islamic profile saved. Marriage expectations comes next.',
       );
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -158,10 +151,9 @@ class _ProfileSetupIslamicProfileScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
@@ -343,14 +335,15 @@ class _ProfileSetupIslamicProfileScreenState
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: const Color(0xfff4efe4),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xffe1dccf)),
+                          border: Border.all(color: const Color(0xffd9d1c0)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedQuranActivity,
                             isExpanded: true,
+                            dropdownColor: const Color(0xfff4efe4),
                             borderRadius: BorderRadius.circular(16),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -367,6 +360,10 @@ class _ProfileSetupIslamicProfileScreenState
                                 child: Text(
                                   option,
                                   overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xff1f3a32),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               );
                             }).toList(),
@@ -387,14 +384,15 @@ class _ProfileSetupIslamicProfileScreenState
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: const Color(0xfff4efe4),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xffe1dccf)),
+                          border: Border.all(color: const Color(0xffd9d1c0)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedQuranFrequency,
                             isExpanded: true,
+                            dropdownColor: const Color(0xfff4efe4),
                             borderRadius: BorderRadius.circular(16),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -411,6 +409,10 @@ class _ProfileSetupIslamicProfileScreenState
                                 child: Text(
                                   option,
                                   overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xff1f3a32),
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               );
                             }).toList(),

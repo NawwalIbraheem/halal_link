@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
 
 import '../constants/app_colors.dart';
 import '../services/profile_api_service.dart';
+import '../utils/app_snackbar.dart';
 
 class PublicProfileViewScreen extends StatefulWidget {
   const PublicProfileViewScreen({
@@ -20,6 +22,7 @@ class PublicProfileViewScreen extends StatefulWidget {
 class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
   Map<String, dynamic>? _profileDetail;
   bool _isLoading = true;
+  bool _isSendingInterest = false;
 
   @override
   void initState() {
@@ -52,10 +55,9 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
         _profileDetail = Map<String, dynamic>.from(widget.profile);
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     }
   }
@@ -100,6 +102,9 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
     final dateOfBirth = profile['date_of_birth']?.toString() ?? '';
     final age = _calculateAge(dateOfBirth);
     final isVerified = profile['is_verified'] as bool? ?? false;
+    final profilePhotoBase64 =
+        (profile['profile_photo_base64'] as String? ?? '').trim();
+    final profilePhotoBytes = _decodePhoto(profilePhotoBase64);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -140,7 +145,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 height: 250,
                                 width: double.infinity,
                                 child: Image.asset(
-                                  'lib/assets/images/Mosque Skyline 2.jpg',
+                                  'lib/assets/images/Mosque Skyline 3.png',
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -187,6 +192,57 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 88,
+                                          height: 88,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.white,
+                                              width: 3,
+                                            ),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color.fromRGBO(
+                                                  0,
+                                                  0,
+                                                  0,
+                                                  0.18,
+                                                ),
+                                                blurRadius: 16,
+                                                offset: Offset(0, 6),
+                                              ),
+                                            ],
+                                          ),
+                                          child: CircleAvatar(
+                                            radius: 41,
+                                            backgroundColor:
+                                                const Color(0xffeef2ed),
+                                            backgroundImage:
+                                                profilePhotoBytes == null
+                                                ? null
+                                                : MemoryImage(profilePhotoBytes),
+                                            child: profilePhotoBytes == null
+                                                ? Text(
+                                                    fullName.isEmpty
+                                                        ? '?'
+                                                        : fullName[0]
+                                                              .toUpperCase(),
+                                                    style: const TextStyle(
+                                                      color: AppColors.primaryGreen,
+                                                      fontSize: 30,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  )
+                                                : null,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 14),
                                     Row(
                                       children: [
                                         Expanded(
@@ -319,15 +375,9 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 children: [
                                   Expanded(
                                     child: ElevatedButton(
-                                      onPressed: () {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Interest sent to $fullName. Matching flow can be connected next.',
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      onPressed: _isSendingInterest
+                                          ? null
+                                          : () => _sendInterest(fullName),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
                                             AppColors.primaryGreen,
@@ -340,13 +390,25 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                               BorderRadius.circular(16),
                                         ),
                                       ),
-                                      child: const Text(
-                                        'Send interest',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
+                                      child: _isSendingInterest
+                                          ? const SizedBox(
+                                              width: 22,
+                                              height: 22,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.3,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Send interest',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -376,6 +438,59 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
         ),
       ),
     );
+  }
+
+  Uint8List? _decodePhoto(String encodedValue) {
+    if (encodedValue.isEmpty) {
+      return null;
+    }
+
+    try {
+      return base64Decode(encodedValue);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _sendInterest(String fullName) async {
+    if (_isSendingInterest) {
+      return;
+    }
+
+    final id = widget.profile['id'] as int?;
+    if (id == null) {
+      AppSnackbar.show(context, 'Profile id is missing.');
+      return;
+    }
+
+    setState(() {
+      _isSendingInterest = true;
+    });
+
+    try {
+      final response = await ProfileApiService.sendInterest(id);
+      if (!mounted) {
+        return;
+      }
+      AppSnackbar.show(
+        context,
+        (response['message'] as String? ?? 'Interest sent to $fullName.').trim(),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingInterest = false;
+        });
+      }
+    }
   }
 }
 

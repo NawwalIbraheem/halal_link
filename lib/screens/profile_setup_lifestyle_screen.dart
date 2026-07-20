@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/profile_api_service.dart';
+import '../utils/app_snackbar.dart';
 import 'discover_screen.dart';
 
 class ProfileSetupLifestyleScreen extends StatefulWidget {
@@ -128,11 +129,7 @@ class _ProfileSetupLifestyleScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile completed successfully.'),
-        ),
-      );
+      AppSnackbar.show(context, 'Profile completed successfully.');
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const DiscoverScreen()),
         (route) => false,
@@ -141,10 +138,9 @@ class _ProfileSetupLifestyleScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
@@ -470,14 +466,15 @@ class _DropdownCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xfff4efe4),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffe1dccf)),
+        border: Border.all(color: const Color(0xffd9d1c0)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
+          dropdownColor: const Color(0xfff4efe4),
           borderRadius: BorderRadius.circular(16),
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -489,7 +486,17 @@ class _DropdownCard extends StatelessWidget {
             color: Color(0xff202124),
           ),
           items: items.map((item) {
-            return DropdownMenuItem<String>(value: item, child: Text(item));
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xff1f3a32),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            );
           }).toList(),
           onChanged: onChanged,
         ),

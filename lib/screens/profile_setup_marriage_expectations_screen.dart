@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/profile_api_service.dart';
+import '../utils/app_snackbar.dart';
 import 'profile_setup_lifestyle_screen.dart';
 
 class ProfileSetupMarriageExpectationsScreen extends StatefulWidget {
@@ -15,10 +16,11 @@ class ProfileSetupMarriageExpectationsScreen extends StatefulWidget {
 
 class _ProfileSetupMarriageExpectationsScreenState
     extends State<ProfileSetupMarriageExpectationsScreen> {
+  static const String _legacyQualitiesPlaceholder =
+      'Practicing, kind, honest, supportive';
+
   final _formKey = GlobalKey<FormState>();
-  final _qualitiesController = TextEditingController(
-    text: 'Practicing, kind, honest, supportive',
-  );
+  final _qualitiesController = TextEditingController();
 
   bool _isSubmitting = false;
   String _selectedTimeline = 'Within 1 year';
@@ -75,9 +77,8 @@ class _ProfileSetupMarriageExpectationsScreenState
       setState(() {
         final qualities = (data['qualities_looking_for'] as String? ?? '')
             .trim();
-        if (qualities.isNotEmpty) {
-          _qualitiesController.text = qualities;
-        }
+        _qualitiesController.text =
+            qualities == _legacyQualitiesPlaceholder ? '' : qualities;
         final timeline = _timelineLabelFromApiValue(
           data['marriage_timeline'] as String? ?? '',
         );
@@ -141,10 +142,9 @@ class _ProfileSetupMarriageExpectationsScreenState
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {
@@ -496,14 +496,15 @@ class _DropdownCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xfff4efe4),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffe1dccf)),
+        border: Border.all(color: const Color(0xffd9d1c0)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
+          dropdownColor: const Color(0xfff4efe4),
           borderRadius: BorderRadius.circular(16),
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -515,7 +516,17 @@ class _DropdownCard extends StatelessWidget {
             color: Color(0xff202124),
           ),
           items: items.map((item) {
-            return DropdownMenuItem<String>(value: item, child: Text(item));
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xff1f3a32),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            );
           }).toList(),
           onChanged: onChanged,
         ),

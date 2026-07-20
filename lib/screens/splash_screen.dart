@@ -23,9 +23,9 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
     });
   }
 
@@ -201,38 +201,6 @@ class _SplashScreenState extends State<SplashScreen> {
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
-                      ),
-                      const SizedBox(height: 18),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: width * 0.08,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: const Color.fromRGBO(1, 68, 51, 0.9),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: width * 0.09,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: AppColors.gold,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            width: width * 0.08,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: const Color.fromRGBO(255, 255, 255, 0.35),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),

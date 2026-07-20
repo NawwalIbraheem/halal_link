@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/auth_input_utils.dart';
+import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -20,6 +22,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void dispose() {
     _identifierController.dispose();
     super.dispose();
+  }
+
+  void _goBackToLogin() {
+    final navigator = Navigator.of(context);
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   void _openEmailResetPlaceholder() {
@@ -65,12 +75,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     if (!AuthInputUtils.isValidTzPhone(_identifierController.text.trim())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'OTP reset requires a valid phone number like +255 658 541 690.',
-          ),
-        ),
+      AppSnackbar.show(
+        context,
+        'OTP reset requires a valid phone number like +255 658 541 690.',
       );
       return;
     }
@@ -132,41 +139,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         fit: BoxFit.cover,
                         alignment: Alignment.bottomCenter,
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: topInset + 10,
-                    left: 14,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.primaryGreen,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: topInset + 10,
-                    right: 18,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'EN',
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(width: 2),
-                        Icon(
-                          Icons.keyboard_arrow_down,
-                          color: AppColors.primaryGreen,
-                          size: 18,
-                        ),
-                      ],
                     ),
                   ),
                   Positioned.fill(
@@ -403,8 +375,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                           ),
                                         ),
                                         GestureDetector(
-                                          onTap: () =>
-                                              Navigator.of(context).maybePop(),
+                                          onTap: _goBackToLogin,
                                           child: const Text(
                                             'Login',
                                             style: TextStyle(
@@ -424,6 +395,41 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                         ),
                       ),
+                    ),
+                  ),
+                  Positioned(
+                    top: topInset + 10,
+                    left: 14,
+                    child: IconButton(
+                      onPressed: _goBackToLogin,
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.primaryGreen,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: topInset + 10,
+                    right: 18,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text(
+                          'EN',
+                          style: TextStyle(
+                            color: AppColors.primaryGreen,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          color: AppColors.primaryGreen,
+                          size: 18,
+                        ),
+                      ],
                     ),
                   ),
                 ],

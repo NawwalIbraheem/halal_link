@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/auth_api_service.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/auth_input_utils.dart';
+import 'legal_document_screen.dart';
+import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -16,6 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
+  bool _isSubmitting = false;
   String _selectedGender = 'Male';
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -35,15 +39,20 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) {
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     final isValid = _formKey.currentState!.validate();
     if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to the terms to continue.')),
-      );
+      AppSnackbar.show(context, 'Please agree to the terms to continue.');
       return;
     }
     if (isValid) {
+      setState(() {
+        _isSubmitting = true;
+      });
       try {
         await AuthApiService.register(
           fullName: _nameController.text.trim(),
@@ -54,23 +63,62 @@ class _SignupScreenState extends State<SignupScreen> {
         if (!mounted) {
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created. Please log in to continue.'),
-          ),
-        );
-        Navigator.of(context).maybePop();
+        _goBackToLogin();
       } catch (error) {
         if (!mounted) {
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString().replaceFirst('Exception: ', '')),
-          ),
+        setState(() {
+          _isSubmitting = false;
+        });
+        AppSnackbar.show(
+          context,
+          error.toString().replaceFirst('Exception: ', ''),
         );
       }
     }
+  }
+
+  void _goBackToLogin() {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(
+          initialIdentifier: _emailController.text.trim().isNotEmpty
+              ? _emailController.text.trim()
+              : '+255 ${_phoneController.text.trim()}',
+        ),
+      ),
+      (route) => false,
+    );
+  }
+
+  void _openTermsOfService() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(
+          title: 'Terms of Service',
+          effectiveDate: 'July 20, 2026',
+          summary:
+              'These terms explain the rules for using Nikah Link, the responsibilities of account holders, and how we maintain a respectful marriage-focused platform.',
+          sections: LegalDocumentScreen.termsOfServiceSections(),
+        ),
+      ),
+    );
+  }
+
+  void _openPrivacyPolicy() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(
+          title: 'Privacy Policy',
+          effectiveDate: 'July 20, 2026',
+          summary:
+              'This policy explains what information Nikah Link collects, how it is used inside the service, and the choices users have over their data.',
+          sections: LegalDocumentScreen.privacyPolicySections(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -107,41 +155,6 @@ class _SignupScreenState extends State<SignupScreen> {
                         fit: BoxFit.cover,
                         alignment: Alignment.bottomCenter,
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: topInset + 10,
-                    left: 14,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.primaryGreen,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: topInset + 10,
-                    right: 18,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'EN',
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        SizedBox(width: 2),
-                        Icon(
-                          Icons.keyboard_arrow_down,
-                          color: AppColors.primaryGreen,
-                          size: 18,
-                        ),
-                      ],
                     ),
                   ),
                   Positioned.fill(
@@ -411,8 +424,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                             top: 10,
                                           ),
                                           child: Wrap(
-                                            children: const [
-                                              Text(
+                                            children: [
+                                              const Text(
                                                 'I agree to the ',
                                                 style: TextStyle(
                                                   color: Color(0xff444444),
@@ -420,15 +433,19 @@ class _SignupScreenState extends State<SignupScreen> {
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
-                                              Text(
-                                                'Terms of Service',
-                                                style: TextStyle(
-                                                  color: AppColors.primaryGreen,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
+                                              GestureDetector(
+                                                onTap: _openTermsOfService,
+                                                child: const Text(
+                                                  'Terms of Service',
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColors.primaryGreen,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                                 ),
                                               ),
-                                              Text(
+                                              const Text(
                                                 ' and ',
                                                 style: TextStyle(
                                                   color: Color(0xff444444),
@@ -436,12 +453,16 @@ class _SignupScreenState extends State<SignupScreen> {
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
-                                              Text(
-                                                'Privacy Policy',
-                                                style: TextStyle(
-                                                  color: AppColors.primaryGreen,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
+                                              GestureDetector(
+                                                onTap: _openPrivacyPolicy,
+                                                child: const Text(
+                                                  'Privacy Policy',
+                                                  style: TextStyle(
+                                                    color:
+                                                        AppColors.primaryGreen,
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -490,8 +511,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                           ),
                                         ),
                                         GestureDetector(
-                                          onTap: () =>
-                                              Navigator.of(context).maybePop(),
+                                          onTap: _goBackToLogin,
                                           child: const Text(
                                             'Login',
                                             style: TextStyle(
@@ -511,6 +531,41 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                         ),
                       ),
+                    ),
+                  ),
+                  Positioned(
+                    top: topInset + 10,
+                    left: 14,
+                    child: IconButton(
+                      onPressed: _goBackToLogin,
+                      icon: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.primaryGreen,
+                        size: 26,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: topInset + 10,
+                    right: 18,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text(
+                          'EN',
+                          style: TextStyle(
+                            color: AppColors.primaryGreen,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          color: AppColors.primaryGreen,
+                          size: 18,
+                        ),
+                      ],
                     ),
                   ),
                 ],

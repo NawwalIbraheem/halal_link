@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
 import '../services/auth_api_service.dart';
+import '../services/profile_api_service.dart';
+import '../services/social_auth_service.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/auth_input_utils.dart';
 import '../utils/auth_session_store.dart';
 import 'discover_screen.dart';
@@ -11,7 +14,12 @@ import 'profile_setup_basic_info_screen.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({
+    super.key,
+    this.initialIdentifier = '',
+  });
+
+  final String initialIdentifier;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,6 +31,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _identifierController.text = widget.initialIdentifier;
+  }
 
   @override
   void dispose() {
@@ -46,30 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
           identifier: _identifierController.text,
           password: _passwordController.text,
         );
-        if (!mounted) {
-          return;
-        }
-        await AuthSessionStore.load();
-        if (!mounted) {
-          return;
-        }
-        final destination = _shouldGoToDiscover()
-            ? const DiscoverScreen()
-            : const ProfileSetupBasicInfoScreen();
-        Navigator.of(context)
-            .push(
-              MaterialPageRoute(
-                builder: (_) => destination,
-              ),
-            )
-            .then((_) {
-              if (!mounted) {
-                return;
-              }
-              setState(() {
-                _isNavigating = false;
-              });
-            });
+        await _completeLoginNavigation();
       } catch (error) {
         if (!mounted) {
           return;
@@ -77,21 +68,120 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isNavigating = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString().replaceFirst('Exception: ', '')),
-          ),
+        AppSnackbar.show(
+          context,
+          error.toString().replaceFirst('Exception: ', ''),
         );
       }
     }
   }
 
-  bool _shouldGoToDiscover() {
+  Future<void> _completeLoginNavigation() async {
+    if (!mounted) {
+      return;
+    }
+
+    await AuthSessionStore.load();
+    if (!mounted) {
+      return;
+    }
+
+    final hasCompletedProfile = await _hasCompletedProfileSetup();
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => hasCompletedProfile
+            ? const DiscoverScreen()
+            : const ProfileSetupBasicInfoScreen(),
+      ),
+      (route) => false,
+    );
+  }
+
+  Future<bool> _hasCompletedProfileSetup() async {
     final user = AuthSessionStore.user;
-    return (user['date_of_birth']?.toString().trim().isNotEmpty ?? false) &&
+    final hasBasicInfo =
+        (user['date_of_birth']?.toString().trim().isNotEmpty ?? false) &&
         ((user['location'] as String? ?? '').trim().isNotEmpty) &&
         ((user['education'] as String? ?? '').trim().isNotEmpty) &&
-        ((user['occupation'] as String? ?? '').trim().isNotEmpty);
+        ((user['occupation'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['languages'] as String? ?? '').trim().isNotEmpty);
+
+    if (!hasBasicInfo) {
+      return false;
+    }
+
+    try {
+      final islamic = await ProfileApiService.getIslamicProfile();
+      final marriage = await ProfileApiService.getMarriageExpectations();
+      final lifestyle = await ProfileApiService.getLifestyleProfile();
+
+      final hasIslamicProfile =
+          (islamic['prayer_level'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['quran_activity'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['quran_frequency'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['islamic_goals'] as String? ?? '').trim().isNotEmpty &&
+          ((islamic['marriage_values'] as List<dynamic>? ?? []).isNotEmpty);
+
+      final hasMarriageExpectations =
+          (marriage['qualities_looking_for'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['marriage_timeline'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['children_preference'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['preferred_living_arrangement'] as String? ?? '')
+              .trim()
+              .isNotEmpty &&
+          (marriage['family_involvement'] as String? ?? '').trim().isNotEmpty;
+
+      final hasLifestyleProfile =
+          (lifestyle['height_range'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['body_type'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['cultural_background'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['dress_style'] as String? ?? '').trim().isNotEmpty;
+
+      return hasIslamicProfile &&
+          hasMarriageExpectations &&
+          hasLifestyleProfile;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _submitGoogle() async {
+    await _submitSocialLogin(SocialAuthService.signInWithGoogle);
+  }
+
+  Future<void> _submitApple() async {
+    await _submitSocialLogin(SocialAuthService.signInWithApple);
+  }
+
+  Future<void> _submitSocialLogin(Future<void> Function() signInAction) async {
+    if (_isNavigating) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isNavigating = true;
+    });
+
+    try {
+      await signInAction();
+      await _completeLoginNavigation();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isNavigating = false;
+      });
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
   @override
@@ -384,17 +474,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 18),
-                                  const _SocialButton(
+                                  _SocialButton(
                                     label: 'Continue with Google',
-                                    icon: 'G',
-                                    iconColor: Color(0xff4285f4),
+                                    leading: const Text(
+                                      'G',
+                                      style: TextStyle(
+                                        color: Color(0xff4285f4),
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    onPressed: _submitGoogle,
                                   ),
                                   const SizedBox(height: 10),
-                                  const _SocialButton(
+                                  _SocialButton(
                                     label: 'Continue with Apple',
-                                    icon: '\u{f8ff}',
-                                    iconColor: Colors.black,
-                                    fontFamily: 'Arial',
+                                    leading: const Icon(
+                                      Icons.apple,
+                                      color: Colors.black,
+                                      size: 20,
+                                    ),
+                                    onPressed: _submitApple,
                                   ),
                                   const SizedBox(height: 18),
                                   Center(
@@ -544,15 +644,13 @@ class _PhoneOrEmailInputFormatter extends TextInputFormatter {
 class _SocialButton extends StatelessWidget {
   const _SocialButton({
     required this.label,
-    required this.icon,
-    required this.iconColor,
-    this.fontFamily,
+    required this.leading,
+    required this.onPressed,
   });
 
   final String label;
-  final String icon;
-  final Color iconColor;
-  final String? fontFamily;
+  final Widget leading;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -560,7 +658,7 @@ class _SocialButton extends StatelessWidget {
       width: double.infinity,
       height: 46,
       child: OutlinedButton(
-        onPressed: () {},
+        onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xff222222),
@@ -572,15 +670,7 @@ class _SocialButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              icon,
-              style: TextStyle(
-                color: iconColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                fontFamily: fontFamily,
-              ),
-            ),
+            leading,
             const SizedBox(width: 12),
             Text(
               label,

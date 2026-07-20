@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 
 import '../constants/app_colors.dart';
 import '../constants/profile_setup_options.dart';
 import '../services/profile_api_service.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/auth_session_store.dart';
 import 'profile_setup_islamic_profile_screen.dart';
 
@@ -27,6 +30,7 @@ class ProfileSetupBasicInfoScreen extends StatefulWidget {
 class _ProfileSetupBasicInfoScreenState
     extends State<ProfileSetupBasicInfoScreen> {
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker _imagePicker = ImagePicker();
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
   late final TextEditingController _emailController;
@@ -35,6 +39,7 @@ class _ProfileSetupBasicInfoScreenState
   String? _selectedLocation;
   String? _selectedEducationLevel;
   String? _selectedOccupation;
+  Uint8List? _selectedPhotoBytes;
   final Set<String> _selectedLanguages = <String>{};
   bool _isNavigating = false;
 
@@ -95,6 +100,8 @@ class _ProfileSetupBasicInfoScreenState
 
     final dateText = profile['date_of_birth']?.toString() ?? '';
     final parsedDate = dateText.isEmpty ? null : DateTime.tryParse(dateText);
+    final photoBase64 = (profile['profile_photo_base64'] as String? ?? '').trim();
+    final photoBytes = _decodePhotoBytes(photoBase64);
 
     setState(() {
       _nameController.text =
@@ -119,7 +126,20 @@ class _ProfileSetupBasicInfoScreenState
       _selectedLanguages
         ..clear()
         ..addAll(parsedLanguages);
+      _selectedPhotoBytes = photoBytes;
     });
+  }
+
+  Uint8List? _decodePhotoBytes(String encodedValue) {
+    if (encodedValue.isEmpty) {
+      return null;
+    }
+
+    try {
+      return base64Decode(encodedValue);
+    } catch (_) {
+      return null;
+    }
   }
 
   String? _normalizeDropdownValue(String? rawValue, List<String> items) {
@@ -364,6 +384,94 @@ class _ProfileSetupBasicInfoScreenState
     });
   }
 
+  Future<void> _selectPhoto() async {
+    FocusScope.of(context).unfocus();
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Add profile photo',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xff202124),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Choose how you want to add your photo.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xff667078),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _PhotoSourceTile(
+                  icon: Icons.photo_camera_outlined,
+                  title: 'Take photo',
+                  subtitle: 'Open the camera',
+                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
+                ),
+                const SizedBox(height: 10),
+                _PhotoSourceTile(
+                  icon: Icons.photo_library_outlined,
+                  title: 'Choose from gallery',
+                  subtitle: 'Select an existing picture',
+                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || source == null) {
+      return;
+    }
+
+    try {
+      final pickedFile = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1400,
+      );
+
+      if (!mounted || pickedFile == null) {
+        return;
+      }
+
+      final bytes = await pickedFile.readAsBytes();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedPhotoBytes = bytes;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      AppSnackbar.show(
+        context,
+        'Could not open the camera or gallery. Please try again.',
+      );
+    }
+  }
+
   String get _formattedBirthDate {
     if (_selectedDate == null) {
       return '';
@@ -400,10 +508,9 @@ class _ProfileSetupBasicInfoScreenState
     final hasLanguages = _selectedLanguages.isNotEmpty;
 
     if (!formValid || !hasDate || !hasLanguages) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please complete all required profile details.'),
-        ),
+      AppSnackbar.show(
+        context,
+        'Please complete all required profile details.',
       );
       return;
     }
@@ -423,6 +530,9 @@ class _ProfileSetupBasicInfoScreenState
         education: _selectedEducationLevel ?? '',
         occupation: _selectedOccupation ?? '',
         languages: _selectedLanguages.toList()..sort(),
+        profilePhotoBase64: _selectedPhotoBytes == null
+            ? ''
+            : base64Encode(_selectedPhotoBytes!),
       );
       if (!mounted) {
         return;
@@ -448,10 +558,9 @@ class _ProfileSetupBasicInfoScreenState
       setState(() {
         _isNavigating = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
       );
     }
   }
@@ -542,15 +651,7 @@ class _ProfileSetupBasicInfoScreenState
                   const SizedBox(height: 24),
                   Center(
                     child: InkWell(
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Photo upload can be connected after media support is added.',
-                            ),
-                          ),
-                        );
-                      },
+                      onTap: _selectPhoto,
                       borderRadius: BorderRadius.circular(56),
                       child: Column(
                         children: [
@@ -581,18 +682,23 @@ class _ProfileSetupBasicInfoScreenState
                                 CircleAvatar(
                                   radius: 32,
                                   backgroundColor: const Color(0xfff9f7f2),
-                                  child: Text(
-                                    _nameController.text.trim().isEmpty
-                                        ? '+'
-                                        : _nameController.text
-                                              .trim()[0]
-                                              .toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.primaryGreen,
-                                    ),
-                                  ),
+                                  backgroundImage: _selectedPhotoBytes == null
+                                      ? null
+                                      : MemoryImage(_selectedPhotoBytes!),
+                                  child: _selectedPhotoBytes == null
+                                      ? Text(
+                                          _nameController.text.trim().isEmpty
+                                              ? '+'
+                                              : _nameController.text
+                                                    .trim()[0]
+                                                    .toUpperCase(),
+                                          style: const TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.primaryGreen,
+                                          ),
+                                        )
+                                      : null,
                                 ),
                                 Positioned(
                                   bottom: 8,
@@ -619,8 +725,8 @@ class _ProfileSetupBasicInfoScreenState
                             ),
                           ),
                           const SizedBox(height: 10),
-                          const Text(
-                            'Add photo',
+                          Text(
+                            _selectedPhotoBytes == null ? 'Add photo' : 'Change photo',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -810,12 +916,9 @@ class _ProfileSetupBasicInfoScreenState
                   Center(
                     child: TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'You can skip this for now and complete it later.',
-                            ),
-                          ),
+                        AppSnackbar.show(
+                          context,
+                          'You can skip this for now and complete it later.',
                         );
                       },
                       style: TextButton.styleFrom(
@@ -834,6 +937,77 @@ class _ProfileSetupBasicInfoScreenState
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoSourceTile extends StatelessWidget {
+  const _PhotoSourceTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xfff8f6f0),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xffe5dfd2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(1, 68, 51, 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: AppColors.primaryGreen, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xff202124),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xff667078),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xff8a9298),
+            ),
+          ],
         ),
       ),
     );
@@ -939,10 +1113,18 @@ class _DropdownField extends StatelessWidget {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           initialValue: normalizedValue,
+          dropdownColor: const Color(0xfff4efe4),
           items: items.map((item) {
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(item, overflow: TextOverflow.ellipsis),
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xff1f3a32),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             );
           }).toList(),
           onChanged: onChanged,
@@ -957,7 +1139,7 @@ class _DropdownField extends StatelessWidget {
             hintText: hintText,
             hintStyle: const TextStyle(color: Color(0xff9aa0a6), fontSize: 14),
             filled: true,
-            fillColor: const Color(0xfffcfbf7),
+            fillColor: const Color(0xfff4efe4),
             prefixIcon: Icon(icon, color: AppColors.primaryGreen, size: 20),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
@@ -965,7 +1147,7 @@ class _DropdownField extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xffe1dccf)),
+              borderSide: const BorderSide(color: Color(0xffd9d1c0)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
