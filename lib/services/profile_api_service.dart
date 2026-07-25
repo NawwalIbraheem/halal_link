@@ -11,7 +11,7 @@ class ProfileApiService {
     try {
       response = await http.get(
         Uri.parse('${ApiConfig.authBaseUrl}/accounts/public/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _publicHeaders(),
       );
     } on http.ClientException {
       throw Exception(_backendUnavailableMessage());
@@ -87,6 +87,36 @@ class ProfileApiService {
     return decoded
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+  }
+
+  static Future<Map<String, dynamic>> respondToInterest({
+    required int matchInterestId,
+    required bool accept,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/'),
+        headers: _headers(),
+        body: jsonEncode(<String, dynamic>{
+          'action': accept ? 'accept' : 'decline',
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      final message = _extractErrorMessage(
+        response.body,
+        fallback: accept
+            ? 'Failed to accept match. (${response.statusCode})'
+            : 'Failed to decline match. (${response.statusCode})',
+      );
+      throw Exception(message);
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<Map<String, dynamic>> getBasicProfile() async {
@@ -291,10 +321,166 @@ class ProfileApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> saveStructuredConversationAnswers({
+    required int matchInterestId,
+    required List<Map<String, dynamic>> answers,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse(
+          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
+        ),
+        headers: _headers(),
+        body: jsonEncode(<String, dynamic>{'answers': answers}),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractErrorMessage(
+          response.body,
+          fallback: 'Failed to save structured conversation answers.',
+        ),
+      );
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<Map<String, dynamic>> getStructuredConversationSummary({
+    required int matchInterestId,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse(
+          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
+        ),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractErrorMessage(
+          response.body,
+          fallback: 'Failed to load structured conversation summary.',
+        ),
+      );
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<Map<String, dynamic>> submitStructuredConversationReflection({
+    required int matchInterestId,
+    required String compatibilityDecision,
+    required String familyStepDecision,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.patch(
+        Uri.parse(
+          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
+        ),
+        headers: _headers(),
+        body: jsonEncode(<String, dynamic>{
+          'compatibility_decision': compatibilityDecision,
+          'family_step_decision': familyStepDecision,
+        }),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractErrorMessage(
+          response.body,
+          fallback: 'Failed to save structured conversation reflection.',
+        ),
+      );
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<List<Map<String, dynamic>>> getMatchMessages({
+    required int matchInterestId,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse(
+          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/messages/',
+        ),
+        headers: _headers(),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        _extractErrorMessage(
+          response.body,
+          fallback: 'Failed to load messages.',
+        ),
+      );
+    }
+
+    final decoded = jsonDecode(response.body) as List<dynamic>;
+    return decoded
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+  }
+
+  static Future<Map<String, dynamic>> sendMatchMessage({
+    required int matchInterestId,
+    required String content,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse(
+          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/messages/',
+        ),
+        headers: _headers(),
+        body: jsonEncode(<String, dynamic>{'content': content}),
+      );
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    }
+
+    if (response.statusCode != 201) {
+      throw Exception(
+        _extractErrorMessage(
+          response.body,
+          fallback: 'Failed to send message.',
+        ),
+      );
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
   static Map<String, String> _headers() {
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ${AuthSessionStore.accessToken}',
+    };
+  }
+
+  static Map<String, String> _publicHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      if (AuthSessionStore.accessToken.trim().isNotEmpty)
+        'Authorization': 'Bearer ${AuthSessionStore.accessToken}',
     };
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 import '../services/auth_api_service.dart';
 import '../services/profile_api_service.dart';
 import '../services/social_auth_service.dart';
@@ -193,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xfffbfbf7),
+        backgroundColor: context.appBackground,
         extendBodyBehindAppBar: true,
         body: LayoutBuilder(
           builder: (context, constraints) {

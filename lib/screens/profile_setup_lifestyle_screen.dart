@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 import '../services/profile_api_service.dart';
 import '../utils/app_snackbar.dart';
 import 'discover_screen.dart';
@@ -210,7 +211,7 @@ class _ProfileSetupLifestyleScreenState
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appBackground,
         body: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),

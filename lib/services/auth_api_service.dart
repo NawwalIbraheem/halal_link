@@ -13,6 +13,7 @@ class AuthApiService {
     required String fullName,
     required String email,
     required String phoneNumber,
+    required String gender,
     required String password,
   }) async {
     late final http.Response response;
@@ -24,6 +25,7 @@ class AuthApiService {
           'username': fullName,
           'email': email.trim().toLowerCase(),
           'phone_number': '+255 ${phoneNumber.trim()}',
+          'gender': gender.trim().toLowerCase(),
           'password': password,
         }),
       ).timeout(_requestTimeout);

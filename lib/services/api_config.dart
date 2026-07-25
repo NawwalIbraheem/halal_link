@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   static const String _overrideBaseUrl = String.fromEnvironment('API_BASE_URL');
-  static const String _localNetworkHost = '172.25.179.1';
+  static const String _localNetworkHost = '192.168.1.7';
 
   static String get authBaseUrl {
     if (_overrideBaseUrl.trim().isNotEmpty) {

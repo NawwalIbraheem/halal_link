@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 
 class LegalDocumentScreen extends StatelessWidget {
   const LegalDocumentScreen({
@@ -126,9 +127,9 @@ class LegalDocumentScreen extends StatelessWidget {
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appBackground,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: context.appBackground,
           elevation: 0,
           foregroundColor: AppColors.primaryGreen,
           title: Text(

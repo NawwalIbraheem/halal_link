@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 import '../services/auth_api_service.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/auth_input_utils.dart';
@@ -58,6 +59,7 @@ class _SignupScreenState extends State<SignupScreen> {
           fullName: _nameController.text.trim(),
           email: _emailController.text.trim(),
           phoneNumber: _phoneController.text.trim(),
+          gender: _selectedGender,
           password: _passwordController.text,
         );
         if (!mounted) {
@@ -130,7 +132,7 @@ class _SignupScreenState extends State<SignupScreen> {
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xfffbfbf7),
+        backgroundColor: context.appBackground,
         extendBodyBehindAppBar: true,
         body: LayoutBuilder(
           builder: (context, constraints) {

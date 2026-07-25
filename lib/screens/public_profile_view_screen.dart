@@ -3,16 +3,27 @@ import 'package:flutter/services.dart';
 import 'dart:convert';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 import '../services/profile_api_service.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/auth_session_store.dart';
+import 'discover_screen.dart';
+import 'match_confirmation_screen.dart';
+import 'structured_compatibility_chat_screen.dart';
 
 class PublicProfileViewScreen extends StatefulWidget {
   const PublicProfileViewScreen({
     super.key,
     required this.profile,
+    this.fromMatches = false,
+    this.matchInterestId,
+    this.relationshipStatus,
   });
 
   final Map<String, dynamic> profile;
+  final bool fromMatches;
+  final int? matchInterestId;
+  final String? relationshipStatus;
 
   @override
   State<PublicProfileViewScreen> createState() =>
@@ -23,11 +34,33 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
   Map<String, dynamic>? _profileDetail;
   bool _isLoading = true;
   bool _isSendingInterest = false;
+  bool _isRespondingToMatch = false;
+  late String _relationshipStatus;
+  int? _activeMatchInterestId;
 
   @override
   void initState() {
     super.initState();
+    _relationshipStatus =
+        (widget.relationshipStatus ??
+                widget.profile['relationship_status'] as String? ??
+                '')
+            .trim();
+    _activeMatchInterestId =
+        widget.matchInterestId ?? widget.profile['match_interest_id'] as int?;
     _loadProfileDetail();
+  }
+
+  void _handleBackNavigation() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(_relationshipStatus);
+      return;
+    }
+
+    navigator.pushReplacement(
+      MaterialPageRoute(builder: (_) => const DiscoverScreen()),
+    );
   }
 
   Future<void> _loadProfileDetail() async {
@@ -59,6 +92,77 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
         context,
         error.toString().replaceFirst('Exception: ', ''),
       );
+    }
+  }
+
+  Future<void> _respondToMatch({required bool accept}) async {
+    if (_isRespondingToMatch) {
+      return;
+    }
+
+    final matchInterestId = widget.matchInterestId;
+    final activeMatchInterestId = matchInterestId ?? _activeMatchInterestId;
+    if (activeMatchInterestId == null) {
+      AppSnackbar.show(context, 'Match request is missing.');
+      return;
+    }
+
+    setState(() {
+      _isRespondingToMatch = true;
+    });
+
+    try {
+      final response = await ProfileApiService.respondToInterest(
+        matchInterestId: activeMatchInterestId,
+        accept: accept,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!accept) {
+        AppSnackbar.show(
+          context,
+          (response['message'] as String? ?? 'Match declined successfully.').trim(),
+        );
+        Navigator.of(context).pop('declined');
+        return;
+      }
+
+      setState(() {
+        _relationshipStatus = 'accepted';
+      });
+
+      await AuthSessionStore.load();
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => MatchConfirmationScreen(
+            currentUser: AuthSessionStore.user,
+            matchedUser: _profileDetail ?? widget.profile,
+            matchInterestId: activeMatchInterestId,
+          ),
+          settings: const RouteSettings(name: 'match_confirmation'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRespondingToMatch = false;
+        });
+      }
     }
   }
 
@@ -105,6 +209,9 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
     final profilePhotoBase64 =
         (profile['profile_photo_base64'] as String? ?? '').trim();
     final profilePhotoBytes = _decodePhoto(profilePhotoBase64);
+    final isPendingReceived = widget.fromMatches && _relationshipStatus == 'pending_received';
+    final isAccepted = _relationshipStatus == 'accepted';
+    final isSent = _relationshipStatus == 'pending_sent';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -113,7 +220,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xfffaf7f0),
+        backgroundColor: context.appBackground,
         body: SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -164,13 +271,22 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 ),
                               ),
                               Positioned(
-                                top: 14,
-                                left: 10,
-                                child: IconButton(
-                                  onPressed: () => Navigator.of(context).maybePop(),
-                                  icon: const Icon(
-                                    Icons.arrow_back,
-                                    color: Colors.white,
+                                top: 16,
+                                left: 16,
+                                child: Material(
+                                  color: const Color.fromRGBO(255, 255, 255, 0.18),
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    onTap: _handleBackNavigation,
+                                    customBorder: const CircleBorder(),
+                                    child: const Padding(
+                                      padding: EdgeInsets.all(10),
+                                      child: Icon(
+                                        Icons.arrow_back_rounded,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -371,63 +487,211 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 ],
                               ),
                               const SizedBox(height: 22),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: _isSendingInterest
-                                          ? null
-                                          : () => _sendInterest(fullName),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            AppColors.primaryGreen,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        minimumSize:
-                                            const Size.fromHeight(54),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                      child: _isSendingInterest
-                                          ? const SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.3,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<Color>(
-                                                  Colors.white,
-                                                ),
+                              isPendingReceived
+                                  ? Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton(
+                                            onPressed: _isRespondingToMatch
+                                                ? null
+                                                : () => _respondToMatch(
+                                                      accept: false,
+                                                    ),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor:
+                                                  const Color(0xffc25050),
+                                              side: const BorderSide(
+                                                color: Color(0xffe8caca),
                                               ),
-                                            )
-                                          : const Text(
-                                              'Send interest',
+                                              minimumSize:
+                                                  const Size.fromHeight(54),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Decline',
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: _isRespondingToMatch
+                                                ? null
+                                                : () => _respondToMatch(
+                                                      accept: true,
+                                                    ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primaryGreen,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              minimumSize:
+                                                  const Size.fromHeight(54),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: _isRespondingToMatch
+                                                ? const SizedBox(
+                                                    width: 22,
+                                                    height: 22,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2.3,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(Colors.white),
+                                                    ),
+                                                  )
+                                                : const Text(
+                                                    'Accept',
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : isAccepted
+                                  ? Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color.fromRGBO(
+                                              1,
+                                              68,
+                                              51,
+                                              0.08,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                          ),
+                                          child: const Text(
+                                            'Accepted',
+                                            style: TextStyle(
+                                              color: AppColors.primaryGreen,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              Navigator.of(context).push(
+                                                MaterialPageRoute(
+                                                  builder: (_) =>
+                                                      StructuredCompatibilityChatScreen(
+                                                    matchedUserName: fullName,
+                                                    matchInterestId:
+                                                        _activeMatchInterestId!,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primaryGreen,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              minimumSize:
+                                                  const Size.fromHeight(54),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Go to structured questions',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: _isSendingInterest || isSent
+                                                ? null
+                                                : () => _sendInterest(fullName),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primaryGreen,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              minimumSize:
+                                                  const Size.fromHeight(54),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: _isSendingInterest
+                                                ? const SizedBox(
+                                                    width: 22,
+                                                    height: 22,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2.3,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation<
+                                                            Color
+                                                          >(Colors.white),
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    isSent ? 'Sent' : 'Send interest',
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Container(
+                                          width: 54,
+                                          height: 54,
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: const Color(0xffd8e0d9),
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.bookmark_border_rounded,
+                                            color: AppColors.primaryGreen,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Container(
-                                    width: 54,
-                                    height: 54,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: const Color(0xffd8e0d9),
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.bookmark_border_rounded,
-                                      color: AppColors.primaryGreen,
-                                    ),
-                                  ),
-                                ],
-                              ),
                             ],
                           ),
                         ),
@@ -472,6 +736,11 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
       if (!mounted) {
         return;
       }
+      setState(() {
+        _relationshipStatus =
+            (response['relationship_status'] as String? ?? 'pending_sent').trim();
+        _activeMatchInterestId = response['match_interest_id'] as int?;
+      });
       AppSnackbar.show(
         context,
         (response['message'] as String? ?? 'Interest sent to $fullName.').trim(),

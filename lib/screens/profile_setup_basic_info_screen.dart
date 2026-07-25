@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 
 import '../constants/app_colors.dart';
+import '../constants/app_theme.dart';
 import '../constants/profile_setup_options.dart';
 import '../services/profile_api_service.dart';
 import '../utils/app_snackbar.dart';
@@ -389,7 +390,7 @@ class _ProfileSetupBasicInfoScreenState
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.appSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -576,7 +577,7 @@ class _ProfileSetupBasicInfoScreenState
         statusBarBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: context.appBackground,
         body: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
