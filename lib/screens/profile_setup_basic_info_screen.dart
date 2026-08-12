@@ -9,6 +9,7 @@ import '../constants/profile_setup_options.dart';
 import '../services/profile_api_service.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/auth_session_store.dart';
+import 'discover_screen.dart';
 import 'profile_setup_islamic_profile_screen.dart';
 
 class ProfileSetupBasicInfoScreen extends StatefulWidget {
@@ -917,9 +918,11 @@ class _ProfileSetupBasicInfoScreenState
                   Center(
                     child: TextButton(
                       onPressed: () {
-                        AppSnackbar.show(
-                          context,
-                          'You can skip this for now and complete it later.',
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const DiscoverScreen(),
+                          ),
+                          (route) => false,
                         );
                       },
                       style: TextButton.styleFrom(

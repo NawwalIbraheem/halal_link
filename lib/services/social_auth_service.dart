@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,6 +10,7 @@ class SocialAuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: const ['email'],
   );
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Future<void> signInWithGoogle() async {
     if (!(kIsWeb ||
@@ -24,6 +26,13 @@ class SocialAuthService {
       if (account == null) {
         throw Exception('Google sign-in was cancelled.');
       }
+
+      final authentication = await account.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: authentication.accessToken,
+        idToken: authentication.idToken,
+      );
+      await _auth.signInWithCredential(credential);
 
       await AuthApiService.socialLogin(
         provider: 'google',
@@ -61,6 +70,12 @@ class SocialAuthService {
     if (providerUserId.isEmpty) {
       throw Exception('Apple sign-in did not return an account identifier.');
     }
+
+    final oauthCredential = OAuthProvider('apple.com').credential(
+      idToken: credential.identityToken,
+      accessToken: credential.authorizationCode,
+    );
+    await _auth.signInWithCredential(oauthCredential);
 
     final nameParts = [
       credential.givenName?.trim() ?? '',

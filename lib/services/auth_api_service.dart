@@ -1,13 +1,12 @@
-import 'dart:convert';
 import 'dart:async';
 
-import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../utils/auth_session_store.dart';
-import 'api_config.dart';
+import 'firebase_data_service.dart';
 
 class AuthApiService {
-  static const Duration _requestTimeout = Duration(seconds: 15);
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
 
   static Future<void> register({
     required String fullName,
@@ -16,62 +15,80 @@ class AuthApiService {
     required String gender,
     required String password,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/register/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'username': fullName,
-          'email': email.trim().toLowerCase(),
-          'phone_number': '+255 ${phoneNumber.trim()}',
-          'gender': gender.trim().toLowerCase(),
-          'password': password,
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
-    }
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final firebaseUser = credential.user;
+      if (firebaseUser == null) {
+        throw Exception('Account could not be created.');
+      }
 
-    if (response.statusCode == 201) {
-      return;
-    }
+      await firebaseUser.updateDisplayName(fullName.trim());
 
-    throw Exception(_extractErrorMessage(response));
+      final userMap = await FirebaseDataService.ensureUserDocument(
+        firebaseUser: firebaseUser,
+        fullName: fullName.trim(),
+        phoneNumber: '+255 ${phoneNumber.trim()}',
+        gender: gender.trim().toLowerCase(),
+        authProvider: 'email',
+      );
+
+      await AuthSessionStore.saveUser(userMap);
+      await _auth.signOut();
+      await AuthSessionStore.clear();
+    } on FirebaseAuthException catch (error) {
+      throw Exception(_mapFirebaseAuthError(error));
+    }
   }
 
   static Future<void> login({
     required String identifier,
     required String password,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/login/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'identifier': identifier.trim(),
-          'password': password,
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
-    }
+      UserCredential credential;
+      final normalizedIdentifier = identifier.trim();
+      if (normalizedIdentifier.contains('@')) {
+        credential = await _auth.signInWithEmailAndPassword(
+          email: normalizedIdentifier.toLowerCase(),
+          password: password,
+        );
+      } else {
+        final userDoc = await FirebaseDataService.findUserDocumentByPhone(
+          normalizedIdentifier,
+        );
+        if (userDoc == null) {
+          throw Exception('Invalid email/phone or password.');
+        }
+        final email = (userDoc.data()['email'] ?? '').toString().trim();
+        if (email.isEmpty) {
+          throw Exception('This account cannot be logged in with a phone number yet.');
+        }
+        credential = await _auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
+      final firebaseUser = credential.user;
+      if (firebaseUser == null) {
+        throw Exception('Login failed.');
+      }
 
-    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    await AuthSessionStore.saveSession(
-      accessTokenValue: data['access'] as String? ?? '',
-      refreshTokenValue: data['refresh'] as String? ?? '',
-      userValue: Map<String, dynamic>.from(data['user'] as Map? ?? {}),
-    );
+      final userMap = await FirebaseDataService.ensureUserDocument(
+        firebaseUser: firebaseUser,
+      );
+
+      await AuthSessionStore.saveSession(
+        accessTokenValue: await firebaseUser.getIdToken() ?? '',
+        refreshTokenValue: firebaseUser.refreshToken ?? '',
+        userValue: userMap,
+      );
+    } on FirebaseAuthException catch (error) {
+      throw Exception(_mapFirebaseAuthError(error));
+    }
   }
 
   static Future<void> socialLogin({
@@ -80,111 +97,55 @@ class AuthApiService {
     required String email,
     required String fullName,
   }) async {
-    late final http.Response response;
-    try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/social-login/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'provider': provider,
-          'provider_user_id': providerUserId,
-          'email': email.trim().toLowerCase(),
-          'full_name': fullName.trim(),
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      throw Exception('Social login did not complete.');
     }
 
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
+    final userMap = await FirebaseDataService.ensureUserDocument(
+      firebaseUser: firebaseUser,
+      fullName: fullName.trim().isEmpty ? null : fullName.trim(),
+      authProvider: provider.trim().toLowerCase(),
+    );
 
-    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
     await AuthSessionStore.saveSession(
-      accessTokenValue: data['access'] as String? ?? '',
-      refreshTokenValue: data['refresh'] as String? ?? '',
-      userValue: Map<String, dynamic>.from(data['user'] as Map? ?? {}),
+      accessTokenValue: await firebaseUser.getIdToken() ?? '',
+      refreshTokenValue: firebaseUser.refreshToken ?? '',
+      userValue: {
+        ...userMap,
+        'social_provider_user_id': providerUserId,
+        if (email.trim().isNotEmpty) 'email': email.trim().toLowerCase(),
+      },
     );
   }
 
   static Future<Map<String, dynamic>> requestEmailPasswordReset({
     required String email,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/forgot-password/email/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email.trim().toLowerCase(),
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
+      await _auth.sendPasswordResetEmail(email: email.trim().toLowerCase());
+      return {
+        'message': 'Reset email sent successfully.',
+      };
+    } on FirebaseAuthException catch (error) {
+      throw Exception(_mapFirebaseAuthError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<Map<String, dynamic>> verifyEmailOtp({
     required String email,
     required String otp,
   }) async {
-    late final http.Response response;
-    try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/verify-email-otp/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email.trim().toLowerCase(),
-          'otp': otp.trim(),
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
-    }
-
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    throw Exception('Email OTP verification is not used with Firebase reset email.');
   }
 
   static Future<Map<String, dynamic>> verifyPhoneReset({
     required String firebaseIdToken,
   }) async {
-    late final http.Response response;
-    try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/verify-phone-reset/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'firebase_id_token': firebaseIdToken.trim(),
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
-    }
-
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+    return {
+      'reset_token': firebaseIdToken.trim(),
+      'message': 'Phone verification successful.',
+    };
   }
 
   static Future<void> resetPassword({
@@ -192,53 +153,34 @@ class AuthApiService {
     required String newPassword,
     required String confirmPassword,
   }) async {
-    late final http.Response response;
-    try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/reset-password/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'reset_token': resetToken.trim(),
-          'new_password': newPassword,
-          'confirm_password': confirmPassword,
-        }),
-      ).timeout(_requestTimeout);
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    } on TimeoutException {
-      throw Exception(_backendTimeoutMessage());
+    if (newPassword != confirmPassword) {
+      throw Exception('Passwords do not match.');
     }
-
-    if (response.statusCode != 200) {
-      throw Exception(_extractErrorMessage(response));
-    }
+    throw Exception(
+      'Use the reset link sent to email to set a new password in Firebase.',
+    );
   }
 
-  static String _extractErrorMessage(http.Response response) {
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        final values = decoded.values.toList();
-        final firstValue = values.isNotEmpty ? values.first : null;
-        if (firstValue is List && firstValue.isNotEmpty) {
-          return firstValue.first.toString();
-        }
-        if (firstValue != null) {
-          return firstValue.toString();
-        }
-      }
-    } catch (_) {
-      // Fall back to a generic message below.
+  static String _mapFirebaseAuthError(FirebaseAuthException error) {
+    switch (error.code) {
+      case 'email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'weak-password':
+        return 'Password is too weak.';
+      case 'invalid-email':
+        return 'Enter a valid email address.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Invalid email/phone or password.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Check your internet connection and try again.';
+      default:
+        return error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'Something went wrong. Please try again.';
     }
-
-    return 'Something went wrong. Please try again.';
-  }
-
-  static String _backendUnavailableMessage() {
-    return 'Cannot reach the backend at ${ApiConfig.authBaseUrl}. Start the Django server and try again.';
-  }
-
-  static String _backendTimeoutMessage() {
-    return 'The backend at ${ApiConfig.authBaseUrl} did not respond in time. Make sure Django is running on 0.0.0.0:8000 and the phone is on the same Wi-Fi.';
   }
 }

@@ -1,142 +1,277 @@
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../utils/auth_session_store.dart';
-import 'api_config.dart';
+import 'firebase_data_service.dart';
 
 class ProfileApiService {
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+
   static Future<List<Map<String, dynamic>>> getPublicAccounts() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/accounts/public/'),
-        headers: _publicHeaders(),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      final currentUid = currentUser?.uid ?? '';
+      Map<String, dynamic> currentData = const <String, dynamic>{};
+      if (currentUid.isNotEmpty) {
+        final currentSnapshot = await FirebaseDataService.currentUserDocument();
+        currentData = currentSnapshot.data() ?? const <String, dynamic>{};
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load available profiles.');
-    }
+      final currentGender = (currentData['gender'] ?? '').toString().trim().toLowerCase();
+      final targetGender = currentGender == 'male'
+          ? 'female'
+          : currentGender == 'female'
+          ? 'male'
+          : '';
 
-    final decoded = jsonDecode(response.body) as List<dynamic>;
-    return decoded
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
+      final usersSnapshot = await FirebaseDataService.users.get();
+      final results = <Map<String, dynamic>>[];
+
+      for (final doc in usersSnapshot.docs) {
+        if (doc.id == currentUid) {
+          continue;
+        }
+        final data = doc.data();
+        final gender = (data['gender'] ?? '').toString().trim().toLowerCase();
+        if (targetGender.isNotEmpty && gender != targetGender) {
+          continue;
+        }
+
+        final publicData = await _buildPublicAccountListItem(
+          doc.id,
+          data,
+          viewerUid: currentUid,
+        );
+        results.add(publicData);
+      }
+
+      return results;
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> getPublicAccountDetail(int accountId) async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/accounts/public/$accountId/'),
-        headers: {'Content-Type': 'application/json'},
+      final doc = await FirebaseDataService.findUserDocumentByPublicId(accountId);
+      if (doc == null) {
+        throw Exception('Selected profile was not found.');
+      }
+      final currentUid = _auth.currentUser?.uid ?? '';
+      return _buildPublicAccountDetailItem(
+        doc.id,
+        doc.data(),
+        viewerUid: currentUid,
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load profile details.');
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<Map<String, dynamic>> sendInterest(int receiverId) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/matches/interests/'),
-        headers: _headers(),
-        body: jsonEncode(<String, dynamic>{'receiver_id': receiverId}),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      final message = _extractErrorMessage(
-        response.body,
-        fallback: 'Failed to send interest.',
-      );
-      throw Exception(message);
-    }
+      final currentUserSnapshot = await FirebaseDataService.currentUserDocument();
+      final currentUserData = currentUserSnapshot.data() ?? const <String, dynamic>{};
+      final receiverDoc =
+          await FirebaseDataService.findUserDocumentByPublicId(receiverId);
+      if (receiverDoc == null) {
+        throw Exception('Selected profile was not found.');
+      }
+      if (receiverDoc.id == currentUser.uid) {
+        throw Exception('You cannot send interest to yourself.');
+      }
 
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final currentMatches = await FirebaseDataService.currentUserMatchDocuments();
+      for (final doc in currentMatches) {
+        final data = doc.data();
+        final senderUid = (data['sender_uid'] ?? '').toString();
+        final receiverUid = (data['receiver_uid'] ?? '').toString();
+        final status = (data['status'] ?? 'pending').toString();
+        final samePair =
+            senderUid == currentUser.uid && receiverUid == receiverDoc.id;
+        final reversePair =
+            senderUid == receiverDoc.id && receiverUid == currentUser.uid;
+
+        if (samePair) {
+          return {
+            'message': status == 'accepted'
+                ? 'This match is already accepted.'
+                : 'You already sent interest to this profile.',
+            'created': false,
+            'receiver_id': receiverId,
+            'match_interest_id': data['id'] as int? ?? 0,
+            'relationship_status':
+                status == 'accepted' ? 'accepted' : 'pending_sent',
+          };
+        }
+
+        if (reversePair) {
+          return {
+            'message': status == 'accepted'
+                ? 'This match is already accepted.'
+                : 'This person already sent interest to you. Check your matches.',
+            'created': false,
+            'receiver_id': receiverId,
+            'match_interest_id': data['id'] as int? ?? 0,
+            'relationship_status':
+                status == 'accepted' ? 'accepted' : 'pending_received',
+          };
+        }
+      }
+
+      final matchId = FirebaseDataService.generateNumericId();
+      await FirebaseDataService.matches.doc(matchId.toString()).set({
+        'id': matchId,
+        'sender_uid': currentUser.uid,
+        'receiver_uid': receiverDoc.id,
+        'sender_public_id': currentUserData['id'] as int? ?? 0,
+        'receiver_public_id': receiverDoc.data()['id'] as int? ?? receiverId,
+        'participant_uids': <String>[currentUser.uid, receiverDoc.id],
+        'status': 'pending',
+        'created_at': FirebaseDataService.nowIso(),
+        'responded_at': null,
+        'structured_answers_by_user': <String, dynamic>{},
+        'structured_reflections_by_user': <String, dynamic>{},
+      });
+
+      return {
+        'message': 'Interest sent successfully.',
+        'created': true,
+        'receiver_id': receiverId,
+        'match_interest_id': matchId,
+        'relationship_status': 'pending_sent',
+      };
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getReceivedInterests() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/matches/interests/'),
-        headers: _headers(),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load matches.');
-    }
+      final currentMatches = await FirebaseDataService.currentUserMatchDocuments();
+      final results = <Map<String, dynamic>>[];
 
-    final decoded = jsonDecode(response.body) as List<dynamic>;
-    return decoded
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
+      for (final doc in currentMatches) {
+        final data = doc.data();
+        final status = (data['status'] ?? '').toString();
+        if (status == 'declined') {
+          continue;
+        }
+
+        final senderUid = (data['sender_uid'] ?? '').toString();
+        final receiverUid = (data['receiver_uid'] ?? '').toString();
+        final counterpartUid =
+            senderUid == currentUser.uid ? receiverUid : senderUid;
+        if (counterpartUid.isEmpty) {
+          continue;
+        }
+
+        final counterpartSnapshot =
+            await FirebaseDataService.users.doc(counterpartUid).get();
+        final counterpartData =
+            counterpartSnapshot.data() ?? const <String, dynamic>{};
+
+        final relationshipStatus = status == 'accepted'
+            ? 'accepted'
+            : receiverUid == currentUser.uid
+            ? 'pending_received'
+            : 'pending_sent';
+
+        results.add({
+          'id': counterpartData['id'] as int? ?? 0,
+          'match_interest_id': data['id'] as int? ?? 0,
+          'full_name': (counterpartData['full_name'] ?? 'Nikah Link member')
+              .toString()
+              .trim(),
+          'email': (counterpartData['email'] ?? '').toString(),
+          'is_verified': counterpartData['is_verified'] as bool? ?? false,
+          'gender': (counterpartData['gender'] ?? '').toString(),
+          'date_of_birth': (counterpartData['date_of_birth'] ?? '').toString(),
+          'location': (counterpartData['location'] ?? '').toString(),
+          'education': (counterpartData['education'] ?? '').toString(),
+          'occupation': (counterpartData['occupation'] ?? '').toString(),
+          'languages': (counterpartData['languages'] ?? '').toString(),
+          'profile_photo_base64': await _visibleProfilePhoto(
+            viewerUid: currentUser.uid,
+            profileUid: counterpartUid,
+            profileData: counterpartData,
+          ),
+          'interest_sent_at': (data['created_at'] ?? '').toString(),
+          'relationship_status': relationshipStatus,
+          'is_actionable': relationshipStatus == 'pending_received',
+          'chat_unlocked': FirebaseDataService.chatUnlockedFromMatchData(
+            data,
+            currentUser.uid,
+            counterpartUid,
+          ),
+        });
+      }
+
+      results.sort((a, b) => ((b['interest_sent_at'] ?? '').toString())
+          .compareTo((a['interest_sent_at'] ?? '').toString()));
+      return results;
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> respondToInterest({
     required int matchInterestId,
     required bool accept,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/'),
-        headers: _headers(),
-        body: jsonEncode(<String, dynamic>{
-          'action': accept ? 'accept' : 'decline',
-        }),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      final message = _extractErrorMessage(
-        response.body,
-        fallback: accept
-            ? 'Failed to accept match. (${response.statusCode})'
-            : 'Failed to decline match. (${response.statusCode})',
-      );
-      throw Exception(message);
-    }
+      final matchDoc =
+          await FirebaseDataService.findMatchDocumentByPublicId(matchInterestId);
+      if (matchDoc == null) {
+        throw Exception('Match request is missing.');
+      }
+      final data = matchDoc.data();
+      final receiverUid = (data['receiver_uid'] ?? '').toString();
+      if (receiverUid != currentUser.uid) {
+        throw Exception('Only the receiver can respond to this match.');
+      }
 
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      await FirebaseDataService.matches.doc(matchDoc.id).set({
+        'status': accept ? 'accepted' : 'declined',
+        'responded_at': FirebaseDataService.nowIso(),
+      }, SetOptions(merge: true));
+
+      return {
+        'message': accept
+            ? 'Match accepted successfully.'
+            : 'Match declined successfully.',
+        'status': accept ? 'accepted' : 'declined',
+        'sender_id': data['sender_public_id'] as int? ?? 0,
+      };
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> getBasicProfile() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/basic-info/'),
-        headers: _headers(),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
+      final snapshot = await FirebaseDataService.currentUserDocument();
+      final data = FirebaseDataService.userMapFromDocument(snapshot);
+      await AuthSessionStore.saveUser(data);
+      return data;
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load basic profile.');
-    }
-
-    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    await AuthSessionStore.saveUser(data);
-    return data;
   }
 
   static Future<Map<String, dynamic>> updateBasicProfile({
@@ -150,52 +285,52 @@ class ProfileApiService {
     required List<String> languages,
     String? profilePhotoBase64,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/basic-info/'),
-        headers: _headers(),
-        body: jsonEncode({
-          'full_name': fullName,
-          'email': email.trim().toLowerCase(),
-          'phone_number': phoneNumber,
-          'date_of_birth': dateOfBirth,
-          'location': location,
-          'education': education,
-          'occupation': occupation,
-          'languages': languages.join(', '),
-          'profile_photo_base64': profilePhotoBase64 ?? '',
-        }),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to save basic profile.');
-    }
+      await FirebaseDataService.users.doc(currentUser.uid).set({
+        'full_name': fullName.trim(),
+        'email': email.trim().toLowerCase(),
+        'phone_number': phoneNumber.trim(),
+        'phone_number_search':
+            FirebaseDataService.normalizePhoneNumber(phoneNumber.trim()),
+        'date_of_birth': dateOfBirth.trim(),
+        'location': location.trim(),
+        'education': education.trim(),
+        'occupation': occupation.trim(),
+        'languages': languages.join(', ').trim(),
+        'profile_photo_base64': (profilePhotoBase64 ?? '').trim(),
+        'updated_at': FirebaseDataService.nowIso(),
+      }, SetOptions(merge: true));
 
-    final data = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-    await AuthSessionStore.saveUser(data);
-    return data;
+      final updated = await getBasicProfile();
+      return updated;
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> getIslamicProfile() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/islamic/'),
-        headers: _headers(),
+      final snapshot = await FirebaseDataService.currentUserDocument();
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      final profile = Map<String, dynamic>.from(
+        data['islamic_profile'] as Map? ??
+            const <String, dynamic>{
+              'prayer_level': '',
+              'quran_activity': '',
+              'quran_frequency': '',
+              'islamic_goals': '',
+              'marriage_values': <String>[],
+            },
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
+      return profile;
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load Islamic profile.');
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<void> updateIslamicProfile({
@@ -205,44 +340,44 @@ class ProfileApiService {
     required String islamicGoals,
     required List<String> marriageValues,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/islamic/'),
-        headers: _headers(),
-        body: jsonEncode({
-          'prayer_level': prayerLevel,
-          'quran_activity': quranActivity,
-          'quran_frequency': quranFrequency,
-          'islamic_goals': islamicGoals,
-          'marriage_values': marriageValues,
-        }),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to save Islamic profile.');
+      await FirebaseDataService.users.doc(currentUser.uid).set({
+        'islamic_profile': {
+          'prayer_level': prayerLevel.trim(),
+          'quran_activity': quranActivity.trim(),
+          'quran_frequency': quranFrequency.trim(),
+          'islamic_goals': islamicGoals.trim(),
+          'marriage_values': marriageValues,
+        },
+        'updated_at': FirebaseDataService.nowIso(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
   }
 
   static Future<Map<String, dynamic>> getMarriageExpectations() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/marriage-expectations/'),
-        headers: _headers(),
+      final snapshot = await FirebaseDataService.currentUserDocument();
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      return Map<String, dynamic>.from(
+        data['marriage_expectations'] as Map? ??
+            const <String, dynamic>{
+              'qualities_looking_for': '',
+              'marriage_timeline': '',
+              'children_preference': '',
+              'preferred_living_arrangement': '',
+              'family_involvement': '',
+            },
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load marriage expectations.');
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<void> updateMarriageExpectations({
@@ -252,44 +387,44 @@ class ProfileApiService {
     required String preferredLivingArrangement,
     required String familyInvolvement,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/marriage-expectations/'),
-        headers: _headers(),
-        body: jsonEncode({
-          'qualities_looking_for': qualitiesLookingFor,
-          'marriage_timeline': marriageTimeline,
-          'children_preference': childrenPreference,
-          'preferred_living_arrangement': preferredLivingArrangement,
-          'family_involvement': familyInvolvement,
-        }),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to save marriage expectations.');
+      await FirebaseDataService.users.doc(currentUser.uid).set({
+        'marriage_expectations': {
+          'qualities_looking_for': qualitiesLookingFor.trim(),
+          'marriage_timeline': marriageTimeline.trim(),
+          'children_preference': childrenPreference.trim(),
+          'preferred_living_arrangement': preferredLivingArrangement.trim(),
+          'family_involvement': familyInvolvement.trim(),
+        },
+        'updated_at': FirebaseDataService.nowIso(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
   }
 
   static Future<Map<String, dynamic>> getLifestyleProfile() async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/lifestyle/'),
-        headers: _headers(),
+      final snapshot = await FirebaseDataService.currentUserDocument();
+      final data = snapshot.data() ?? const <String, dynamic>{};
+      return Map<String, dynamic>.from(
+        data['lifestyle_profile'] as Map? ??
+            const <String, dynamic>{
+              'height_range': '',
+              'body_type': '',
+              'cultural_background': '',
+              'dress_style': '',
+              'photo_privacy_matches_only': true,
+            },
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load lifestyle profile.');
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
   }
 
   static Future<void> updateLifestyleProfile({
@@ -299,25 +434,24 @@ class ProfileApiService {
     required String dressStyle,
     required bool photoPrivacyMatchesOnly,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.authBaseUrl}/profile/lifestyle/'),
-        headers: _headers(),
-        body: jsonEncode({
-          'height_range': heightRange,
-          'body_type': bodyType,
-          'cultural_background': culturalBackground,
-          'dress_style': dressStyle,
-          'photo_privacy_matches_only': photoPrivacyMatchesOnly,
-        }),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to save lifestyle profile.');
+      await FirebaseDataService.users.doc(currentUser.uid).set({
+        'lifestyle_profile': {
+          'height_range': heightRange.trim(),
+          'body_type': bodyType.trim(),
+          'cultural_background': culturalBackground.trim(),
+          'dress_style': dressStyle.trim(),
+          'photo_privacy_matches_only': photoPrivacyMatchesOnly,
+        },
+        'updated_at': FirebaseDataService.nowIso(),
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
   }
 
@@ -325,56 +459,109 @@ class ProfileApiService {
     required int matchInterestId,
     required List<Map<String, dynamic>> answers,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse(
-          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
-        ),
-        headers: _headers(),
-        body: jsonEncode(<String, dynamic>{'answers': answers}),
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
+      final matchDoc = await _getAcceptedMatch(matchInterestId);
+      final data = matchDoc.data();
+      final existing = Map<String, dynamic>.from(
+        data['structured_answers_by_user'] as Map? ?? const <String, dynamic>{},
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentAnswers = <String, dynamic>{
+        for (final item in answers)
+          '${item['question_index']}': (item['answer'] ?? '').toString().trim(),
+      };
+      existing[currentUser.uid] = currentAnswers;
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'Failed to save structured conversation answers.',
-        ),
-      );
-    }
+      await FirebaseDataService.matches.doc(matchDoc.id).set({
+        'structured_answers_by_user': existing,
+      }, SetOptions(merge: true));
 
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      return getStructuredConversationSummary(matchInterestId: matchInterestId);
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> getStructuredConversationSummary({
     required int matchInterestId,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse(
-          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
-        ),
-        headers: _headers(),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
+      final matchDoc = await _getAcceptedMatch(matchInterestId);
+      final data = matchDoc.data();
+      final senderUid = (data['sender_uid'] ?? '').toString();
+      final receiverUid = (data['receiver_uid'] ?? '').toString();
+      final otherUid = senderUid == currentUser.uid ? receiverUid : senderUid;
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'Failed to load structured conversation summary.',
-        ),
+      final answersByUser = Map<String, dynamic>.from(
+        data['structured_answers_by_user'] as Map? ?? const <String, dynamic>{},
       );
-    }
+      final reflectionsByUser = Map<String, dynamic>.from(
+        data['structured_reflections_by_user'] as Map? ??
+            const <String, dynamic>{},
+      );
 
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      final yourAnswers = Map<String, dynamic>.from(
+        answersByUser[currentUser.uid] as Map? ?? const <String, dynamic>{},
+      );
+      final theirAnswers = Map<String, dynamic>.from(
+        answersByUser[otherUid] as Map? ?? const <String, dynamic>{},
+      );
+
+      final questions = <Map<String, dynamic>>[];
+      for (var index = 0;
+          index < FirebaseDataService.structuredQuestions.length;
+          index += 1) {
+        final question = FirebaseDataService.structuredQuestions[index];
+        questions.add({
+          'question_index': index,
+          'topic': question['topic'] ?? '',
+          'prompt': question['prompt'] ?? '',
+          'description': question['description'] ?? '',
+          'your_answer': (yourAnswers['$index'] ?? '').toString().trim(),
+          'their_answer': (theirAnswers['$index'] ?? '').toString().trim(),
+        });
+      }
+
+      final currentReflection = Map<String, dynamic>.from(
+        reflectionsByUser[currentUser.uid] as Map? ??
+            const <String, dynamic>{
+              'compatibility_decision': '',
+              'family_step_decision': '',
+            },
+      );
+      final matchedReflection = Map<String, dynamic>.from(
+        reflectionsByUser[otherUid] as Map? ??
+            const <String, dynamic>{
+              'compatibility_decision': '',
+              'family_step_decision': '',
+            },
+      );
+
+      final bothAnswered = yourAnswers.length >= FirebaseDataService.structuredQuestions.length &&
+          theirAnswers.length >= FirebaseDataService.structuredQuestions.length;
+      final chatUnlocked = FirebaseDataService.chatUnlockedFromMatchData(
+        data,
+        currentUser.uid,
+        otherUid,
+      );
+
+      return {
+        'questions': questions,
+        'current_user_reflection': currentReflection,
+        'matched_user_reflection': matchedReflection,
+        'both_answered': bothAnswered,
+        'chat_unlocked': chatUnlocked,
+      };
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<Map<String, dynamic>> submitStructuredConversationReflection({
@@ -382,129 +569,309 @@ class ProfileApiService {
     required String compatibilityDecision,
     required String familyStepDecision,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.patch(
-        Uri.parse(
-          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/structured-conversation/',
-        ),
-        headers: _headers(),
-        body: jsonEncode(<String, dynamic>{
-          'compatibility_decision': compatibilityDecision,
-          'family_step_decision': familyStepDecision,
-        }),
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
+      final matchDoc = await _getAcceptedMatch(matchInterestId);
+      final data = matchDoc.data();
+      final existing = Map<String, dynamic>.from(
+        data['structured_reflections_by_user'] as Map? ??
+            const <String, dynamic>{},
       );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      existing[currentUser.uid] = {
+        'compatibility_decision': compatibilityDecision.trim(),
+        'family_step_decision': familyStepDecision.trim(),
+      };
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'Failed to save structured conversation reflection.',
-        ),
-      );
-    }
+      await FirebaseDataService.matches.doc(matchDoc.id).set({
+        'structured_reflections_by_user': existing,
+      }, SetOptions(merge: true));
 
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      return getStructuredConversationSummary(matchInterestId: matchInterestId);
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getMatchMessages({
     required int matchInterestId,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse(
-          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/messages/',
-        ),
-        headers: _headers(),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
+      }
+      final matchDoc = await _getChatUnlockedMatch(matchInterestId);
+      final messagesSnapshot = await FirebaseDataService.matches
+          .doc(matchDoc.id)
+          .collection('messages')
+          .orderBy('created_at')
+          .get();
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'Failed to load messages.',
-        ),
-      );
+      return messagesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': data['id'] as int? ?? 0,
+          'sender_id': data['sender_public_id'] as int? ?? 0,
+          'sender_name': (data['sender_name'] ?? '').toString(),
+          'content': (data['content'] ?? '').toString(),
+          'created_at': (data['created_at'] ?? '').toString(),
+          'is_mine': (data['sender_uid'] ?? '').toString() == currentUser.uid,
+        };
+      }).toList();
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
     }
-
-    final decoded = jsonDecode(response.body) as List<dynamic>;
-    return decoded
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
   }
 
   static Future<Map<String, dynamic>> sendMatchMessage({
     required int matchInterestId,
     required String content,
   }) async {
-    late final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse(
-          '${ApiConfig.authBaseUrl}/matches/interests/$matchInterestId/messages/',
-        ),
-        headers: _headers(),
-        body: jsonEncode(<String, dynamic>{'content': content}),
-      );
-    } on http.ClientException {
-      throw Exception(_backendUnavailableMessage());
-    }
-
-    if (response.statusCode != 201) {
-      throw Exception(
-        _extractErrorMessage(
-          response.body,
-          fallback: 'Failed to send message.',
-        ),
-      );
-    }
-
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-  }
-
-  static Map<String, String> _headers() {
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${AuthSessionStore.accessToken}',
-    };
-  }
-
-  static Map<String, String> _publicHeaders() {
-    return {
-      'Content-Type': 'application/json',
-      if (AuthSessionStore.accessToken.trim().isNotEmpty)
-        'Authorization': 'Bearer ${AuthSessionStore.accessToken}',
-    };
-  }
-
-  static String _backendUnavailableMessage() {
-    return 'Cannot reach the backend at ${ApiConfig.authBaseUrl}. Start the Django server and try again.';
-  }
-
-  static String _extractErrorMessage(String responseBody, {required String fallback}) {
-    try {
-      final decoded = jsonDecode(responseBody);
-      if (decoded is Map<String, dynamic>) {
-        for (final value in decoded.values) {
-          if (value is List && value.isNotEmpty) {
-            return value.first.toString();
-          }
-          if (value is String && value.trim().isNotEmpty) {
-            return value;
-          }
-        }
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('You are not logged in.');
       }
-    } catch (_) {
-      return fallback;
+      final currentSnapshot = await FirebaseDataService.currentUserDocument();
+      final currentData = currentSnapshot.data() ?? const <String, dynamic>{};
+      final matchDoc = await _getChatUnlockedMatch(matchInterestId);
+
+      final messageId = FirebaseDataService.generateNumericId();
+      final payload = {
+        'id': messageId,
+        'sender_uid': currentUser.uid,
+        'sender_public_id': currentData['id'] as int? ?? 0,
+        'sender_name': (currentData['full_name'] ?? '').toString(),
+        'content': content.trim(),
+        'created_at': FirebaseDataService.nowIso(),
+      };
+
+      await FirebaseDataService.matches
+          .doc(matchDoc.id)
+          .collection('messages')
+          .doc(messageId.toString())
+          .set(payload);
+
+      return {
+        ...payload,
+        'is_mine': true,
+      };
+    } on FirebaseException catch (error) {
+      throw Exception(_mapFirestoreError(error));
+    }
+  }
+
+  static Future<QueryDocumentSnapshot<Map<String, dynamic>>> _getAcceptedMatch(
+    int matchInterestId,
+  ) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You are not logged in.');
+    }
+    final matchDoc =
+        await FirebaseDataService.findMatchDocumentByPublicId(matchInterestId);
+    if (matchDoc == null) {
+      throw Exception('Match request is missing.');
+    }
+    final data = matchDoc.data();
+    final participants = (data['participant_uids'] as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .toList();
+    if (!participants.contains(currentUser.uid)) {
+      throw Exception('This match does not belong to you.');
+    }
+    if ((data['status'] ?? '').toString() != 'accepted') {
+      throw Exception('Structured conversation is available only for accepted matches.');
+    }
+    return matchDoc;
+  }
+
+  static Future<QueryDocumentSnapshot<Map<String, dynamic>>> _getChatUnlockedMatch(
+    int matchInterestId,
+  ) async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      throw Exception('You are not logged in.');
+    }
+    final matchDoc = await _getAcceptedMatch(matchInterestId);
+    final data = matchDoc.data();
+    final senderUid = (data['sender_uid'] ?? '').toString();
+    final receiverUid = (data['receiver_uid'] ?? '').toString();
+    final otherUid = senderUid == currentUser.uid ? receiverUid : senderUid;
+    final unlocked = FirebaseDataService.chatUnlockedFromMatchData(
+      data,
+      currentUser.uid,
+      otherUid,
+    );
+    if (!unlocked) {
+      throw Exception('Chat is available only after both reflections are accepted.');
+    }
+    return matchDoc;
+  }
+
+  static Future<Map<String, dynamic>> _buildPublicAccountListItem(
+    String profileUid,
+    Map<String, dynamic> data, {
+    required String viewerUid,
+  }) async {
+    final photo = await _visibleProfilePhoto(
+      viewerUid: viewerUid,
+      profileUid: profileUid,
+      profileData: data,
+    );
+    return {
+      'id': data['id'] as int? ?? 0,
+      'full_name': (data['full_name'] ?? 'Nikah Link member').toString().trim(),
+      'email': (data['email'] ?? '').toString().trim(),
+      'is_verified': data['is_verified'] as bool? ?? false,
+      'gender': (data['gender'] ?? '').toString().trim(),
+      'date_of_birth': (data['date_of_birth'] ?? '').toString().trim(),
+      'location': (data['location'] ?? '').toString().trim(),
+      'education': (data['education'] ?? '').toString().trim(),
+      'occupation': (data['occupation'] ?? '').toString().trim(),
+      'languages': (data['languages'] ?? '').toString().trim(),
+      'profile_photo_base64': photo,
+      'can_view_photo': photo.isNotEmpty,
+    };
+  }
+
+  static Future<Map<String, dynamic>> _buildPublicAccountDetailItem(
+    String profileUid,
+    Map<String, dynamic> data, {
+    required String viewerUid,
+  }) async {
+    final islamicProfile = Map<String, dynamic>.from(
+      data['islamic_profile'] as Map? ?? const <String, dynamic>{},
+    );
+    final photo = await _visibleProfilePhoto(
+      viewerUid: viewerUid,
+      profileUid: profileUid,
+      profileData: data,
+    );
+    return {
+      'id': data['id'] as int? ?? 0,
+      'full_name': (data['full_name'] ?? 'Nikah Link member').toString().trim(),
+      'email': (data['email'] ?? '').toString().trim(),
+      'is_verified': data['is_verified'] as bool? ?? false,
+      'gender': (data['gender'] ?? '').toString().trim(),
+      'date_of_birth': (data['date_of_birth'] ?? '').toString().trim(),
+      'location': (data['location'] ?? '').toString().trim(),
+      'education': (data['education'] ?? '').toString().trim(),
+      'occupation': (data['occupation'] ?? '').toString().trim(),
+      'languages': (data['languages'] ?? '').toString().trim(),
+      'profile_photo_base64': photo,
+      'can_view_photo': photo.isNotEmpty,
+      'about_me': _buildAboutMe(data),
+      'prayer_level_display': FirebaseDataService.prayerLevelDisplay(
+        (islamicProfile['prayer_level'] ?? '').toString(),
+      ),
+      'quran_focus_display': _buildQuranFocusDisplay(islamicProfile),
+      'islamic_goals_display': _buildIslamicGoalsDisplay(islamicProfile),
+    };
+  }
+
+  static String _buildAboutMe(Map<String, dynamic> data) {
+    final parts = <String>[];
+    final occupation = (data['occupation'] ?? '').toString().trim();
+    final location = (data['location'] ?? '').toString().trim();
+    final languages = (data['languages'] ?? '').toString().trim();
+
+    if (occupation.isNotEmpty) {
+      parts.add('I work as a ${occupation.toLowerCase()}');
+    }
+    if (location.isNotEmpty) {
+      parts.add('living in $location');
+    }
+    if (languages.isNotEmpty) {
+      final primaryLanguage = languages.split(',').first.trim();
+      if (primaryLanguage.isNotEmpty) {
+        parts.add('and speak $primaryLanguage');
+      }
+    }
+    if (parts.isEmpty) {
+      return 'I am looking for a sincere Muslim partner to build a peaceful Islamic home.';
+    }
+    return '${parts.join(', ')}. I value honesty, deen, and a marriage built on kindness.';
+  }
+
+  static String _buildQuranFocusDisplay(Map<String, dynamic> profile) {
+    final activity = FirebaseDataService.quranActivityDisplay(
+      (profile['quran_activity'] ?? '').toString(),
+    );
+    final frequency = FirebaseDataService.quranFrequencyDisplay(
+      (profile['quran_frequency'] ?? '').toString(),
+    );
+    final values = [
+      if (activity.isNotEmpty) activity,
+      if (frequency.isNotEmpty) frequency,
+    ];
+    return values.isEmpty ? 'Not shared yet' : values.join(' • ');
+  }
+
+  static String _buildIslamicGoalsDisplay(Map<String, dynamic> profile) {
+    final goals = (profile['islamic_goals'] ?? '').toString().trim();
+    if (goals.isEmpty) {
+      return 'To please Allah and build a strong Islamic home.';
+    }
+    return goals;
+  }
+
+  static Future<String> _visibleProfilePhoto({
+    required String viewerUid,
+    required String profileUid,
+    required Map<String, dynamic> profileData,
+  }) async {
+    final rawPhoto = (profileData['profile_photo_base64'] ?? '').toString().trim();
+    if (rawPhoto.isEmpty) {
+      return '';
     }
 
-    return fallback;
+    final lifestyle = Map<String, dynamic>.from(
+      profileData['lifestyle_profile'] as Map? ?? const <String, dynamic>{},
+    );
+    final matchesOnly = lifestyle['photo_privacy_matches_only'] as bool? ?? true;
+    if (!matchesOnly) {
+      return rawPhoto;
+    }
+    if (viewerUid.isEmpty) {
+      return '';
+    }
+    if (viewerUid == profileUid) {
+      return rawPhoto;
+    }
+
+    final matches = await FirebaseDataService.matches
+        .where('participant_uids', arrayContains: viewerUid)
+        .where('status', isEqualTo: 'accepted')
+        .get();
+    for (final doc in matches.docs) {
+      final data = doc.data();
+      final participants =
+          (data['participant_uids'] as List<dynamic>? ?? const [])
+              .map((item) => item.toString())
+              .toList();
+      if (participants.contains(profileUid)) {
+        return rawPhoto;
+      }
+    }
+    return '';
+  }
+
+  static String _mapFirestoreError(FirebaseException error) {
+    switch (error.code) {
+      case 'unavailable':
+        return 'Cloud Firestore is currently unavailable. Check the phone internet connection and make sure Firestore Database is created in Firebase project nikahlink-b60e5.';
+      case 'failed-precondition':
+        return 'Cloud Firestore is not ready yet. Open Firebase project nikahlink-b60e5 and create the Firestore Database first.';
+      case 'permission-denied':
+        return 'Cloud Firestore denied access. Check your Firestore security rules.';
+      default:
+        return error.message?.trim().isNotEmpty == true
+            ? error.message!.trim()
+            : 'Cloud Firestore is not available right now.';
+    }
   }
 }

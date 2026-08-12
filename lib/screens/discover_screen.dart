@@ -611,15 +611,26 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           (AuthSessionStore.user['email'] as String? ?? '').trim().toLowerCase();
       final currentUserName =
           (AuthSessionStore.user['full_name'] as String? ?? '').trim();
+      final currentUserGender =
+          (AuthSessionStore.user['gender'] as String? ?? '').trim().toLowerCase();
+      final targetGender = currentUserGender == 'male'
+          ? 'female'
+          : currentUserGender == 'female'
+          ? 'male'
+          : '';
 
       final filtered = profiles.where((profile) {
         final email = (profile['email'] as String? ?? '').trim().toLowerCase();
         final fullName = (profile['full_name'] as String? ?? '').trim();
+        final gender = (profile['gender'] as String? ?? '').trim().toLowerCase();
 
         if (currentUserEmail.isNotEmpty && email == currentUserEmail) {
           return false;
         }
         if (email.isEmpty && currentUserName.isNotEmpty && fullName == currentUserName) {
+          return false;
+        }
+        if (targetGender.isNotEmpty && gender != targetGender) {
           return false;
         }
         return true;
@@ -826,6 +837,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       }
       _profiles[index] = profile;
     }
+
+    _profiles.removeWhere((profile) {
+      final status = (profile['relationship_status'] as String? ?? '').trim();
+      return status == 'pending_sent' ||
+          status == 'pending_received' ||
+          status == 'accepted';
+    });
   }
 
   Future<void> _openProfileFromDiscover(Map<String, dynamic> profile) async {
@@ -846,8 +864,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     if (result != null && result.isNotEmpty) {
       setState(() {
+        _isLoading = true;
         _isMatchesLoading = true;
       });
+      await _loadProfiles();
       await _loadReceivedInterests();
     }
   }

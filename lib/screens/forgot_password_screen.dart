@@ -84,7 +84,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       if (_method == _ResetMethod.email) {
-        final response = await AuthApiService.requestEmailPasswordReset(
+        await AuthApiService.requestEmailPasswordReset(
           email: _identifierController.text.trim(),
         );
         if (!mounted) {
@@ -92,11 +92,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         }
         AppSnackbar.show(
           context,
-          response['message']?.toString() ??
-              'If an account exists, a verification code has been sent.',
+          'Reset email sent successfully. Please check your inbox.',
         );
         setState(() {
-          _step = _ResetStep.verifyOtp;
+          _successMessage =
+              'We sent a password reset link to your email. Open the link in your inbox to reset your password.';
+          _step = _ResetStep.success;
         });
       } else {
         await PhoneResetService.sendCode(
@@ -258,6 +259,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
+  void _handleBackArrow() {
+    switch (_step) {
+      case _ResetStep.chooseMethod:
+      case _ResetStep.enterContact:
+      case _ResetStep.success:
+        _goBackToLogin();
+        break;
+      case _ResetStep.verifyOtp:
+      case _ResetStep.setNewPassword:
+        _goToContactStep();
+        break;
+    }
+  }
+
   String _titleText() {
     switch (_step) {
       case _ResetStep.chooseMethod:
@@ -281,7 +296,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         return 'Choose how you want to reset your password.';
       case _ResetStep.enterContact:
         return _method == _ResetMethod.email
-            ? 'Enter your registered email and we will send a 6-digit verification code.'
+            ? 'Enter your registered email and we will send a password reset link.'
             : 'Enter your registered phone number and we will send an SMS verification code.';
       case _ResetStep.verifyOtp:
         return _method == _ResetMethod.email
@@ -450,9 +465,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     top: topInset + 10,
                     left: 14,
                     child: IconButton(
-                      onPressed: _step == _ResetStep.chooseMethod
-                          ? _goBackToLogin
-                          : _goToContactStep,
+                      onPressed: _handleBackArrow,
                       icon: const Icon(
                         Icons.arrow_back,
                         color: AppColors.primaryGreen,
@@ -535,7 +548,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 16),
               _PrimaryButton(
-                label: _isSubmitting ? 'Sending...' : 'Send Code',
+                label: _isSubmitting
+                    ? 'Sending...'
+                    : _method == _ResetMethod.email
+                    ? 'Send Reset Link'
+                    : 'Send Code',
                 onPressed: _sendCode,
               ),
             ],
