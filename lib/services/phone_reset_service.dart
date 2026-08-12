@@ -19,7 +19,7 @@ class PhoneResetService {
     );
   }
 
-  static Future<String> verifyCode({
+  static Future<Map<String, String>> verifyCode({
     required String verificationId,
     required String smsCode,
   }) async {
@@ -34,11 +34,18 @@ class PhoneResetService {
     }
 
     final idToken = await user.getIdToken();
+    final phoneNumber = user.phoneNumber?.trim() ?? '';
     await _auth.signOut();
     if (idToken == null || idToken.isEmpty) {
       throw Exception('Phone verification failed.');
     }
-    return idToken;
+    if (phoneNumber.isEmpty) {
+      throw Exception('Verified phone number is missing.');
+    }
+    return {
+      'id_token': idToken,
+      'phone_number': phoneNumber,
+    };
   }
 
   static String _mapError(FirebaseAuthException error) {

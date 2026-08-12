@@ -156,14 +156,29 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         );
         _resetToken = response['reset_token']?.toString() ?? '';
       } else {
-        final firebaseIdToken = await PhoneResetService.verifyCode(
+        final verificationResult = await PhoneResetService.verifyCode(
           verificationId: _verificationId,
           smsCode: _otpController.text.trim(),
         );
         final response = await AuthApiService.verifyPhoneReset(
-          firebaseIdToken: firebaseIdToken,
+          firebaseIdToken: verificationResult['id_token'] ?? '',
+          phoneNumber: verificationResult['phone_number'] ?? '',
         );
         _resetToken = response['reset_token']?.toString() ?? '';
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _successMessage =
+              'Phone verified successfully. We sent a password reset link to ${(response['email'] ?? '').toString().trim()}.';
+          _step = _ResetStep.success;
+        });
+        AppSnackbar.show(
+          context,
+          response['message']?.toString() ??
+              'Phone verified successfully. Reset email sent.',
+        );
+        return;
       }
 
       if (!mounted) {

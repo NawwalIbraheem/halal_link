@@ -141,10 +141,33 @@ class AuthApiService {
 
   static Future<Map<String, dynamic>> verifyPhoneReset({
     required String firebaseIdToken,
+    required String phoneNumber,
   }) async {
+    final normalizedPhone = FirebaseDataService.normalizePhoneNumber(phoneNumber);
+    final userDoc = await FirebaseDataService.findUserDocumentByPhone(
+      normalizedPhone,
+    );
+    if (userDoc == null) {
+      throw Exception('No account was found for this verified phone number.');
+    }
+
+    final email = (userDoc.data()['email'] ?? '').toString().trim().toLowerCase();
+    if (email.isEmpty) {
+      throw Exception(
+        'This phone number is verified, but the linked account has no email to send a reset link to.',
+      );
+    }
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (error) {
+      throw Exception(_mapFirebaseAuthError(error));
+    }
+
     return {
       'reset_token': firebaseIdToken.trim(),
-      'message': 'Phone verification successful.',
+      'email': email,
+      'message': 'Phone verified successfully. Reset email sent.',
     };
   }
 
