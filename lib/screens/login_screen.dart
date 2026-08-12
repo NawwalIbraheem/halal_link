@@ -83,6 +83,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     await AuthSessionStore.load();
+    try {
+      await ProfileApiService.getBasicProfile();
+    } catch (_) {
+      // Keep the login flow moving even if the latest profile refresh fails.
+    }
     if (!mounted) {
       return;
     }
@@ -419,7 +424,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 20),
                                   SizedBox(
                                     width: double.infinity,
                                     height: 48,

@@ -14,6 +14,7 @@ import 'messaging_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_setup_basic_info_screen.dart';
 import 'public_profile_view_screen.dart';
+import 'structured_compatibility_chat_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({
@@ -79,6 +80,46 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         _currentUserProfile = Map<String, dynamic>.from(AuthSessionStore.user);
         _isProfileLoading = false;
       });
+    }
+  }
+
+  Future<void> _respondToMatchFromList({
+    required int matchInterestId,
+    required bool accept,
+  }) async {
+    try {
+      final response = await ProfileApiService.respondToInterest(
+        matchInterestId: matchInterestId,
+        accept: accept,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      AppSnackbar.show(
+        context,
+        (response['message'] as String? ??
+                (accept
+                    ? 'Match accepted successfully.'
+                    : 'Match declined successfully.'))
+            .trim(),
+      );
+
+      setState(() {
+        _isLoading = true;
+        _isMatchesLoading = true;
+      });
+      await _loadProfiles();
+      await _loadReceivedInterests();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      AppSnackbar.show(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+      );
     }
   }
 
@@ -707,17 +748,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String _buildSubtitle(Map<String, dynamic> profile) {
     final location = (profile['location'] as String? ?? '').trim();
-    final distance = _mockDistance(profile);
     if (location.isEmpty) {
-      return distance;
+      return 'Nikah Link community';
     }
-    return '$location  •  $distance away';
-  }
-
-  String _mockDistance(Map<String, dynamic> profile) {
-    final id = (profile['id'] as int? ?? 0);
-    final distances = ['2 km', '4 km', '6 km', '8 km', '11 km'];
-    return distances[id % distances.length];
+    return location;
   }
 
   List<String> _buildHighlights(Map<String, dynamic> profile) {
@@ -961,6 +995,38 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         final profile = _matchEntries[index];
         return _MatchCard(
           profile: profile,
+          onAccept: (profile['relationship_status'] as String? ?? '').trim() ==
+                  'pending_received'
+              ? () => _respondToMatchFromList(
+                    matchInterestId: profile['match_interest_id'] as int? ?? 0,
+                    accept: true,
+                  )
+              : null,
+          onDecline: (profile['relationship_status'] as String? ?? '').trim() ==
+                  'pending_received'
+              ? () => _respondToMatchFromList(
+                    matchInterestId: profile['match_interest_id'] as int? ?? 0,
+                    accept: false,
+                  )
+              : null,
+          onOpenStructuredQuestions:
+              (profile['relationship_status'] as String? ?? '').trim() ==
+                      'accepted'
+                  ? () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => StructuredCompatibilityChatScreen(
+                            matchedUserName:
+                                (profile['full_name'] as String? ??
+                                        'Nikah Link member')
+                                    .trim(),
+                            matchInterestId:
+                                profile['match_interest_id'] as int? ?? 0,
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
           onViewProfile: () async {
             final result = await Navigator.of(context).push<String>(
               MaterialPageRoute(
@@ -1832,10 +1898,16 @@ class _EmptyChatState extends StatelessWidget {
 class _MatchCard extends StatelessWidget {
   const _MatchCard({
     required this.profile,
+    this.onAccept,
+    this.onDecline,
+    this.onOpenStructuredQuestions,
     required this.onViewProfile,
   });
 
   final Map<String, dynamic> profile;
+  final VoidCallback? onAccept;
+  final VoidCallback? onDecline;
+  final VoidCallback? onOpenStructuredQuestions;
   final VoidCallback onViewProfile;
 
   @override
@@ -1855,6 +1927,8 @@ class _MatchCard extends StatelessWidget {
       'pending_sent' => 'Sent',
       _ => 'New interest',
     };
+    final isPendingReceived = relationshipStatus == 'pending_received';
+    final isAccepted = relationshipStatus == 'accepted';
     final highlights = <String>[
       if (occupation.isNotEmpty) occupation,
       if (education.isNotEmpty) education,
@@ -1970,6 +2044,77 @@ class _MatchCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 16),
+            if (isPendingReceived) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onDecline,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xffba3c3c),
+                        side: const BorderSide(color: Color(0xffead1d1)),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Decline',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onAccept,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(52),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Accept',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (isAccepted && onOpenStructuredQuestions != null) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onOpenStructuredQuestions,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(52),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Go to structured questions',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(

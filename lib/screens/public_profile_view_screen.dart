@@ -208,6 +208,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
     final isVerified = profile['is_verified'] as bool? ?? false;
     final profilePhotoBase64 =
         (profile['profile_photo_base64'] as String? ?? '').trim();
+    final canViewPhoto = profile['can_view_photo'] as bool? ?? profilePhotoBase64.isNotEmpty;
     final profilePhotoBytes = _decodePhoto(profilePhotoBase64);
     final isPendingReceived = widget.fromMatches && _relationshipStatus == 'pending_received';
     final isAccepted = _relationshipStatus == 'accepted';
@@ -358,6 +359,53 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                         ),
                                       ],
                                     ),
+                                    if (!canViewPhoto) ...[
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color.fromRGBO(
+                                            255,
+                                            255,
+                                            255,
+                                            0.18,
+                                          ),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: const Color.fromRGBO(
+                                              255,
+                                              255,
+                                              255,
+                                              0.28,
+                                            ),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.lock_outline_rounded,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                            SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                'Photo visible to approved matches',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 14),
                                     Row(
                                       children: [
@@ -385,7 +433,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                     Text(
                                       location.isEmpty
                                           ? 'Nikah Link community'
-                                          : '$location  •  3 km away',
+                                          : location,
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 14,

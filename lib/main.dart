@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'constants/app_colors.dart';
 import 'constants/app_theme.dart';
 import 'screens/splash_screen.dart';
@@ -6,6 +8,13 @@ import 'utils/app_settings_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    if (kDebugMode) {
+      debugPrint('Firebase was not initialized on this platform.');
+    }
+  }
   await AppSettingsController.instance.load();
 
   runApp(

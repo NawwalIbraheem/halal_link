@@ -110,6 +110,110 @@ class AuthApiService {
     );
   }
 
+  static Future<Map<String, dynamic>> requestEmailPasswordReset({
+    required String email,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.authBaseUrl}/forgot-password/email/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+        }),
+      ).timeout(_requestTimeout);
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    } on TimeoutException {
+      throw Exception(_backendTimeoutMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<Map<String, dynamic>> verifyEmailOtp({
+    required String email,
+    required String otp,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.authBaseUrl}/verify-email-otp/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim().toLowerCase(),
+          'otp': otp.trim(),
+        }),
+      ).timeout(_requestTimeout);
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    } on TimeoutException {
+      throw Exception(_backendTimeoutMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<Map<String, dynamic>> verifyPhoneReset({
+    required String firebaseIdToken,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.authBaseUrl}/verify-phone-reset/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'firebase_id_token': firebaseIdToken.trim(),
+        }),
+      ).timeout(_requestTimeout);
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    } on TimeoutException {
+      throw Exception(_backendTimeoutMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
+
+    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+  }
+
+  static Future<void> resetPassword({
+    required String resetToken,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.authBaseUrl}/reset-password/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'reset_token': resetToken.trim(),
+          'new_password': newPassword,
+          'confirm_password': confirmPassword,
+        }),
+      ).timeout(_requestTimeout);
+    } on http.ClientException {
+      throw Exception(_backendUnavailableMessage());
+    } on TimeoutException {
+      throw Exception(_backendTimeoutMessage());
+    }
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
+  }
+
   static String _extractErrorMessage(http.Response response) {
     try {
       final decoded = jsonDecode(response.body);

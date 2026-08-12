@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../constants/app_colors.dart';
+import '../services/profile_api_service.dart';
+import '../utils/auth_session_store.dart';
+import 'discover_screen.dart';
 import 'login_screen.dart';
+import 'profile_setup_basic_info_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -19,14 +23,98 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 2), () {
+    _timer = Timer(const Duration(seconds: 2), _routeFromSavedSession);
+  }
+
+  Future<void> _routeFromSavedSession() async {
+    await AuthSessionStore.load();
+    if (!mounted) {
+      return;
+    }
+
+    if (AuthSessionStore.accessToken.trim().isEmpty) {
+      _openScreen(const LoginScreen());
+      return;
+    }
+
+    try {
+      await ProfileApiService.getBasicProfile();
+    } catch (_) {
       if (!mounted) {
         return;
       }
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-    });
+      _openScreen(const LoginScreen());
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final hasCompletedProfile = await _hasCompletedProfileSetup();
+    if (!mounted) {
+      return;
+    }
+
+    _openScreen(
+      hasCompletedProfile
+          ? const DiscoverScreen()
+          : const ProfileSetupBasicInfoScreen(),
+    );
+  }
+
+  Future<bool> _hasCompletedProfileSetup() async {
+    final user = AuthSessionStore.user;
+    final hasBasicInfo =
+        (user['date_of_birth']?.toString().trim().isNotEmpty ?? false) &&
+        ((user['location'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['education'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['occupation'] as String? ?? '').trim().isNotEmpty) &&
+        ((user['languages'] as String? ?? '').trim().isNotEmpty);
+
+    if (!hasBasicInfo) {
+      return false;
+    }
+
+    try {
+      final islamic = await ProfileApiService.getIslamicProfile();
+      final marriage = await ProfileApiService.getMarriageExpectations();
+      final lifestyle = await ProfileApiService.getLifestyleProfile();
+
+      final hasIslamicProfile =
+          (islamic['prayer_level'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['quran_activity'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['quran_frequency'] as String? ?? '').trim().isNotEmpty &&
+          (islamic['islamic_goals'] as String? ?? '').trim().isNotEmpty &&
+          ((islamic['marriage_values'] as List<dynamic>? ?? []).isNotEmpty);
+
+      final hasMarriageExpectations =
+          (marriage['qualities_looking_for'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['marriage_timeline'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['children_preference'] as String? ?? '').trim().isNotEmpty &&
+          (marriage['preferred_living_arrangement'] as String? ?? '')
+              .trim()
+              .isNotEmpty &&
+          (marriage['family_involvement'] as String? ?? '').trim().isNotEmpty;
+
+      final hasLifestyleProfile =
+          (lifestyle['height_range'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['body_type'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['cultural_background'] as String? ?? '').trim().isNotEmpty &&
+          (lifestyle['dress_style'] as String? ?? '').trim().isNotEmpty;
+
+      return hasIslamicProfile &&
+          hasMarriageExpectations &&
+          hasLifestyleProfile;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _openScreen(Widget screen) {
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => screen));
   }
 
   @override

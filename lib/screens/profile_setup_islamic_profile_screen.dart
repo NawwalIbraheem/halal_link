@@ -449,17 +449,21 @@ class _ProfileSetupIslamicProfileScreenState
                   ),
                   child: TextField(
                     controller: _goalsController,
+                    minLines: 4,
                     maxLines: 4,
                     maxLength: 200,
+                    textAlignVertical: TextAlignVertical.top,
                     decoration: const InputDecoration(
                       hintText:
                           'Share what you hope to improve in deen and family life.',
                       hintStyle: TextStyle(
                         color: Color(0xff98a0a6),
                         fontSize: 14,
+                        height: 1.4,
                       ),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.fromLTRB(14, 14, 14, 12),
+                      isCollapsed: false,
+                      contentPadding: EdgeInsets.fromLTRB(16, 16, 16, 12),
                       counterStyle: TextStyle(
                         color: Color(0xffa0a6ab),
                         fontSize: 11,
