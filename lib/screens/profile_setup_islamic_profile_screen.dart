@@ -266,7 +266,7 @@ class _ProfileSetupIslamicProfileScreenState
                   child: const LinearProgressIndicator(
                     value: 0.5,
                     minHeight: 6,
-                    backgroundColor: Color(0xffddd8cb),
+                    backgroundColor: Color(0xffd6dde3),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.primaryGreen,
                     ),
@@ -336,15 +336,15 @@ class _ProfileSetupIslamicProfileScreenState
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xfff4efe4),
+                          color: const Color(0xffebeff3),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xffd9d1c0)),
+                          border: Border.all(color: const Color(0xffd6dde3)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedQuranActivity,
                             isExpanded: true,
-                            dropdownColor: const Color(0xfff4efe4),
+                            dropdownColor: const Color(0xffebeff3),
                             borderRadius: BorderRadius.circular(16),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -385,15 +385,15 @@ class _ProfileSetupIslamicProfileScreenState
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xfff4efe4),
+                          color: const Color(0xffebeff3),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xffd9d1c0)),
+                          border: Border.all(color: const Color(0xffd6dde3)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedQuranFrequency,
                             isExpanded: true,
-                            dropdownColor: const Color(0xfff4efe4),
+                            dropdownColor: const Color(0xffebeff3),
                             borderRadius: BorderRadius.circular(16),
                             icon: const Icon(
                               Icons.keyboard_arrow_down_rounded,
@@ -445,7 +445,7 @@ class _ProfileSetupIslamicProfileScreenState
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xffe1dccf)),
+                    border: Border.all(color: const Color(0xffdbe2e8)),
                   ),
                   child: TextField(
                     controller: _goalsController,
@@ -557,7 +557,7 @@ class _ChoiceChipButton extends StatelessWidget {
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppColors.primaryGreen : const Color(0xffe1dccf),
+            color: selected ? AppColors.primaryGreen : const Color(0xffdbe2e8),
           ),
         ),
         child: Text(
@@ -594,7 +594,7 @@ class _ValueToggle extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xffe1dccf)),
+          border: Border.all(color: const Color(0xffdbe2e8)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

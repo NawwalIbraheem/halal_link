@@ -144,7 +144,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xfffdfdfb), Color(0xfff7f4eb)],
+                  colors: [Color(0xfff4f6f8), Color(0xffeceff3)],
                 ),
               ),
               child: Stack(
@@ -638,11 +638,11 @@ class _AuthField extends StatelessWidget {
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xffdbd8cf)),
+          borderSide: const BorderSide(color: Color(0xffd6dde3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xffdbd8cf)),
+          borderSide: const BorderSide(color: Color(0xffd6dde3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -673,7 +673,7 @@ class _GenderOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = active ? color : const Color(0xffd7d2c7);
+    final borderColor = active ? color : const Color(0xffd6dde3);
     final backgroundColor = active
         ? (color == AppColors.primaryGreen
               ? const Color.fromRGBO(1, 68, 51, 0.08)

@@ -23,12 +23,35 @@ class ProfileApiService {
           : currentGender == 'female'
           ? 'male'
           : '';
+      final hiddenProfileUids = <String>{};
+
+      if (currentUid.isNotEmpty) {
+        final currentMatches = await FirebaseDataService.currentUserMatchDocuments();
+        for (final match in currentMatches) {
+          final matchData = match.data();
+          final status = (matchData['status'] ?? '').toString().trim().toLowerCase();
+          if (status == 'declined') {
+            continue;
+          }
+
+          final senderUid = (matchData['sender_uid'] ?? '').toString().trim();
+          final receiverUid = (matchData['receiver_uid'] ?? '').toString().trim();
+          if (senderUid == currentUid && receiverUid.isNotEmpty) {
+            hiddenProfileUids.add(receiverUid);
+          } else if (receiverUid == currentUid && senderUid.isNotEmpty) {
+            hiddenProfileUids.add(senderUid);
+          }
+        }
+      }
 
       final usersSnapshot = await FirebaseDataService.users.get();
       final results = <Map<String, dynamic>>[];
 
       for (final doc in usersSnapshot.docs) {
         if (doc.id == currentUid) {
+          continue;
+        }
+        if (hiddenProfileUids.contains(doc.id)) {
           continue;
         }
         final data = doc.data();

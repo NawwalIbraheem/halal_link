@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 class AppThemeColors {
-  static const Color lightBackground = Color(0xfffaf7f0);
+  static const Color lightBackground = Color(0xfff2f4f7);
   static const Color lightSurface = Color(0xffffffff);
-  static const Color lightSurfaceMuted = Color(0xfff6f1e8);
-  static const Color lightSoft = Color(0xffeef2ed);
-  static const Color lightBorder = Color(0xffddd8cc);
+  static const Color lightSurfaceMuted = Color(0xffebeff3);
+  static const Color lightSoft = Color(0xffe4eaee);
+  static const Color lightBorder = Color(0xffd6dde3);
   static const Color lightText = Color(0xff18201e);
   static const Color lightTextMuted = Color(0xff6b7378);
 

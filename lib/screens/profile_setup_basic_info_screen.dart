@@ -279,7 +279,7 @@ class _ProfileSetupBasicInfoScreenState
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
                             borderSide: const BorderSide(
-                              color: Color(0xffe1dccf),
+                              color: Color(0xffdbe2e8),
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -618,7 +618,7 @@ class _ProfileSetupBasicInfoScreenState
                     child: const LinearProgressIndicator(
                       value: 0.25,
                       minHeight: 6,
-                      backgroundColor: Color(0xffddd8cb),
+                      backgroundColor: Color(0xffd6dde3),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         AppColors.primaryGreen,
                       ),
@@ -668,7 +668,7 @@ class _ProfileSetupBasicInfoScreenState
                                 colors: [Color(0xffece8df), Color(0xffdfd8ca)],
                               ),
                               border: Border.all(
-                                color: const Color(0xffddd8cb),
+                                color: const Color(0xffd6dde3),
                               ),
                               boxShadow: const [
                                 BoxShadow(
@@ -1062,11 +1062,11 @@ class _ReadOnlyProfileField extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xffe1dccf)),
+              borderSide: const BorderSide(color: Color(0xffdbe2e8)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xffe1dccf)),
+              borderSide: const BorderSide(color: Color(0xffdbe2e8)),
             ),
           ),
           style: TextStyle(
@@ -1117,7 +1117,7 @@ class _DropdownField extends StatelessWidget {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           initialValue: normalizedValue,
-          dropdownColor: const Color(0xfff4efe4),
+          dropdownColor: const Color(0xffebeff3),
           items: items.map((item) {
             return DropdownMenuItem<String>(
               value: item,
@@ -1143,7 +1143,7 @@ class _DropdownField extends StatelessWidget {
             hintText: hintText,
             hintStyle: const TextStyle(color: Color(0xff9aa0a6), fontSize: 14),
             filled: true,
-            fillColor: const Color(0xfff4efe4),
+            fillColor: const Color(0xffebeff3),
             prefixIcon: Icon(icon, color: AppColors.primaryGreen, size: 20),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
@@ -1151,7 +1151,7 @@ class _DropdownField extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xffd9d1c0)),
+              borderSide: const BorderSide(color: Color(0xffd6dde3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
@@ -1212,7 +1212,7 @@ class _DateField extends FormField<String> {
                      border: Border.all(
                        color: state.hasError
                            ? const Color(0xffc43d34)
-                           : const Color(0xffe1dccf),
+                           : const Color(0xffdbe2e8),
                      ),
                    ),
                    child: Row(
@@ -1298,7 +1298,7 @@ class _LanguageField extends FormField<String> {
                      border: Border.all(
                        color: state.hasError
                            ? const Color(0xffc43d34)
-                           : const Color(0xffe1dccf),
+                           : const Color(0xffdbe2e8),
                      ),
                    ),
                    child: Row(

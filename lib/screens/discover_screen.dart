@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_theme.dart';
@@ -17,10 +19,7 @@ import 'public_profile_view_screen.dart';
 import 'structured_compatibility_chat_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({
-    super.key,
-    this.initialTabIndex = 0,
-  });
+  const DiscoverScreen({super.key, this.initialTabIndex = 0});
 
   final int initialTabIndex;
 
@@ -59,7 +58,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       await AuthSessionStore.load();
       if (mounted) {
         setState(() {
-          _currentUserProfile = Map<String, dynamic>.from(AuthSessionStore.user);
+          _currentUserProfile = Map<String, dynamic>.from(
+            AuthSessionStore.user,
+          );
         });
       }
 
@@ -124,10 +125,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   Future<void> _refreshNotifications() async {
-    final notifications =
-        await NotificationCenterService.buildNotifications(
-          matchEntries: _matchEntries,
-        );
+    final notifications = await NotificationCenterService.buildNotifications(
+      matchEntries: _matchEntries,
+    );
     if (!mounted) {
       return;
     }
@@ -583,7 +583,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               _ProfileInfoRow(
                 icon: Icons.info_outline_rounded,
                 label: 'Guidance',
-                value: 'Check your profile details, structured conversation status, and chat access before contacting support.',
+                value:
+                    'Check your profile details, structured conversation status, and chat access before contacting support.',
               ),
             ],
           ),
@@ -598,8 +599,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   String _privacyLabel(AppSettingsController controller) {
     final visibility = controller.profileVisible ? 'Visible' : 'Hidden';
-    final onlineStatus =
-        controller.showOnlineStatus ? 'online shown' : 'online hidden';
+    final onlineStatus = controller.showOnlineStatus
+        ? 'online shown'
+        : 'online hidden';
     return '$visibility • $onlineStatus';
   }
 
@@ -607,12 +609,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     try {
       await AuthSessionStore.load();
       final profiles = await ProfileApiService.getPublicAccounts();
-      final currentUserEmail =
-          (AuthSessionStore.user['email'] as String? ?? '').trim().toLowerCase();
+      final currentUserEmail = (AuthSessionStore.user['email'] as String? ?? '')
+          .trim()
+          .toLowerCase();
       final currentUserName =
           (AuthSessionStore.user['full_name'] as String? ?? '').trim();
       final currentUserGender =
-          (AuthSessionStore.user['gender'] as String? ?? '').trim().toLowerCase();
+          (AuthSessionStore.user['gender'] as String? ?? '')
+              .trim()
+              .toLowerCase();
       final targetGender = currentUserGender == 'male'
           ? 'female'
           : currentUserGender == 'female'
@@ -622,12 +627,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       final filtered = profiles.where((profile) {
         final email = (profile['email'] as String? ?? '').trim().toLowerCase();
         final fullName = (profile['full_name'] as String? ?? '').trim();
-        final gender = (profile['gender'] as String? ?? '').trim().toLowerCase();
+        final gender = (profile['gender'] as String? ?? '')
+            .trim()
+            .toLowerCase();
 
         if (currentUserEmail.isNotEmpty && email == currentUserEmail) {
           return false;
         }
-        if (email.isEmpty && currentUserName.isNotEmpty && fullName == currentUserName) {
+        if (email.isEmpty &&
+            currentUserName.isNotEmpty &&
+            fullName == currentUserName) {
           return false;
         }
         if (targetGender.isNotEmpty && gender != targetGender) {
@@ -729,7 +738,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 
   String _formatHeadline(Map<String, dynamic> profile) {
-    final name = (profile['full_name'] as String? ?? 'Nikah Link member').trim();
+    final name = (profile['full_name'] as String? ?? 'Nikah Link member')
+        .trim();
     final dateOfBirth = profile['date_of_birth']?.toString() ?? '';
     final age = _calculateAge(dateOfBirth);
 
@@ -755,60 +765,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       age -= 1;
     }
     return age;
-  }
-
-  String _buildSubtitle(Map<String, dynamic> profile) {
-    final location = (profile['location'] as String? ?? '').trim();
-    if (location.isEmpty) {
-      return 'Nikah Link community';
-    }
-    return location;
-  }
-
-  List<String> _buildHighlights(Map<String, dynamic> profile) {
-    final highlights = <String>[];
-    final occupation = (profile['occupation'] as String? ?? '').trim();
-    final education = (profile['education'] as String? ?? '').trim();
-    final languages = (profile['languages'] as String? ?? '').trim();
-
-    if (occupation.isNotEmpty) {
-      highlights.add(occupation);
-    }
-    if (education.isNotEmpty) {
-      highlights.add(education);
-    }
-    if (languages.isNotEmpty) {
-      highlights.add(languages.split(',').first.trim());
-    }
-
-    if (highlights.isEmpty) {
-      highlights.addAll(['Practicing', 'Serious', 'Ready']);
-    }
-
-    return highlights.take(3).toList();
-  }
-
-  String _buildAbout(Map<String, dynamic> profile) {
-    final occupation = (profile['occupation'] as String? ?? '').trim();
-    final location = (profile['location'] as String? ?? '').trim();
-    final education = (profile['education'] as String? ?? '').trim();
-
-    final parts = <String>[];
-    if (occupation.isNotEmpty) {
-      parts.add('I work as a $occupation');
-    }
-    if (location.isNotEmpty) {
-      parts.add('based in $location');
-    }
-    if (education.isNotEmpty) {
-      parts.add('with a background in $education');
-    }
-
-    if (parts.isEmpty) {
-      return 'I am here seeking a sincere Muslim partner for a serious halal marriage journey.';
-    }
-
-    return '${parts.join(', ')}. I am looking for a sincere Muslim partner to build a peaceful Islamic family.';
   }
 
   void _applyMatchStatesToProfiles() {
@@ -851,8 +807,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       MaterialPageRoute(
         builder: (_) => PublicProfileViewScreen(
           profile: profile,
-          relationshipStatus:
-              (profile['relationship_status'] as String? ?? '').trim(),
+          relationshipStatus: (profile['relationship_status'] as String? ?? '')
+              .trim(),
           matchInterestId: profile['match_interest_id'] as int?,
         ),
       ),
@@ -872,6 +828,29 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  Future<void> _openDiscoverSearch() async {
+    if (_profiles.isEmpty) {
+      AppSnackbar.show(
+        context,
+        'No profiles are available to search right now.',
+      );
+      return;
+    }
+
+    final selectedProfile = await showSearch<Map<String, dynamic>?>(
+      context: context,
+      delegate: _ProfileSearchDelegate(
+        profiles: List<Map<String, dynamic>>.from(_profiles),
+      ),
+    );
+
+    if (!mounted || selectedProfile == null) {
+      return;
+    }
+
+    await _openProfileFromDiscover(selectedProfile);
+  }
+
   @override
   Widget build(BuildContext context) {
     final body = switch (_selectedTabIndex) {
@@ -881,6 +860,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       3 => _buildProfileContent(),
       _ => _buildDiscoverContent(),
     };
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final navBottom = bottomInset > 0 ? bottomInset + 10.0 : 14.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -890,82 +871,94 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
       child: Scaffold(
         backgroundColor: context.appBackground,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
-            child: Column(
-              children: [
-                Row(
+        body: Stack(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                child: Column(
                   children: [
-                    Image.asset(
-                      'lib/assets/images/nikah_link_icon_green.png',
-                      width: 38,
-                      height: 38,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _selectedTabIndex == 0
-                            ? 'Nikah Link'
-                            : _selectedTabIndex == 1
-                            ? 'Matches'
-                            : _selectedTabIndex == 2
-                            ? 'Chat'
-                            : 'Profile',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryGreen,
+                    Row(
+                      children: [
+                        Image.asset(
+                          'lib/assets/images/nikah_link_icon_green.png',
+                          width: 38,
+                          height: 38,
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              _selectedTabIndex == 0
+                                  ? 'Nikah Link'
+                                  : _selectedTabIndex == 1
+                                  ? 'Matches'
+                                  : _selectedTabIndex == 2
+                                  ? 'Chat'
+                                  : 'Profile',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primaryGreen,
+                              ),
+                            ),
+                          ),
+                        ),
+                        _HeaderCircleButton(
+                          icon: _selectedTabIndex == 0
+                              ? Iconsax.search_normal_1
+                              : _selectedTabIndex == 1 || _selectedTabIndex == 2
+                              ? Iconsax.refresh
+                              : Iconsax.refresh,
+                          onTap: _selectedTabIndex == 0
+                              ? _openDiscoverSearch
+                              : () {
+                                  setState(() {
+                                    _isMatchesLoading = true;
+                                    if (_selectedTabIndex == 3) {
+                                      _isProfileLoading = true;
+                                    }
+                                  });
+                                  if (_selectedTabIndex == 3) {
+                                    _loadCurrentUserProfile();
+                                  } else {
+                                    _loadReceivedInterests();
+                                  }
+                                },
+                        ),
+                        const SizedBox(width: 10),
+                        _HeaderCircleButton(
+                          icon: _selectedTabIndex == 0
+                              ? Iconsax.filter
+                              : _selectedTabIndex == 3
+                              ? Iconsax.setting_4
+                              : Iconsax.notification,
+                          badgeCount: _unreadNotificationCount,
+                          onTap: _selectedTabIndex == 3
+                              ? _showNotificationSettings
+                              : _openNotifications,
+                        ),
+                      ],
                     ),
-                    _HeaderCircleButton(
-                      icon: _selectedTabIndex == 0
-                          ? Icons.search_rounded
-                          : _selectedTabIndex == 1 || _selectedTabIndex == 2
-                          ? Icons.refresh_rounded
-                          : Icons.refresh_rounded,
-                      onTap: _selectedTabIndex == 0
-                          ? () {}
-                          : () {
-                              setState(() {
-                                _isMatchesLoading = true;
-                                if (_selectedTabIndex == 3) {
-                                  _isProfileLoading = true;
-                                }
-                              });
-                              if (_selectedTabIndex == 3) {
-                                _loadCurrentUserProfile();
-                              } else {
-                                _loadReceivedInterests();
-                              }
-                            },
-                    ),
-                    const SizedBox(width: 10),
-                    _HeaderCircleButton(
-                      icon: _selectedTabIndex == 0
-                          ? Icons.tune_rounded
-                          : _selectedTabIndex == 3
-                          ? Icons.settings_outlined
-                          : Icons.notifications_none_rounded,
-                      badgeCount: _unreadNotificationCount,
-                      onTap: _selectedTabIndex == 3
-                          ? _showNotificationSettings
-                          : _openNotifications,
-                    ),
+                    const SizedBox(height: 18),
+                    Expanded(child: body),
                   ],
                 ),
-                const SizedBox(height: 18),
-                Expanded(child: body),
-                const SizedBox(height: 16),
-                _BottomNavBar(
-                  selectedIndex: _selectedTabIndex,
-                  matchCount: _matchEntries.length,
-                  onTap: _handleTabSelected,
-                ),
-              ],
+              ),
             ),
-          ),
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: navBottom,
+              child: _BottomNavBar(
+                selectedIndex: _selectedTabIndex,
+                matchCount: _matchEntries.length,
+                onTap: _handleTabSelected,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -989,9 +982,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         return _DiscoverListCard(
           profile: profile,
           headline: _formatHeadline(profile),
-          subtitle: _buildSubtitle(profile),
-          highlights: _buildHighlights(profile),
-          about: _buildAbout(profile),
           onViewProfile: () => _openProfileFromDiscover(profile),
         );
       },
@@ -1015,38 +1005,40 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         final profile = _matchEntries[index];
         return _MatchCard(
           profile: profile,
-          onAccept: (profile['relationship_status'] as String? ?? '').trim() ==
+          onAccept:
+              (profile['relationship_status'] as String? ?? '').trim() ==
                   'pending_received'
               ? () => _respondToMatchFromList(
-                    matchInterestId: profile['match_interest_id'] as int? ?? 0,
-                    accept: true,
-                  )
+                  matchInterestId: profile['match_interest_id'] as int? ?? 0,
+                  accept: true,
+                )
               : null,
-          onDecline: (profile['relationship_status'] as String? ?? '').trim() ==
+          onDecline:
+              (profile['relationship_status'] as String? ?? '').trim() ==
                   'pending_received'
               ? () => _respondToMatchFromList(
-                    matchInterestId: profile['match_interest_id'] as int? ?? 0,
-                    accept: false,
-                  )
+                  matchInterestId: profile['match_interest_id'] as int? ?? 0,
+                  accept: false,
+                )
               : null,
           onOpenStructuredQuestions:
               (profile['relationship_status'] as String? ?? '').trim() ==
-                      'accepted'
-                  ? () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => StructuredCompatibilityChatScreen(
-                            matchedUserName:
-                                (profile['full_name'] as String? ??
-                                        'Nikah Link member')
-                                    .trim(),
-                            matchInterestId:
-                                profile['match_interest_id'] as int? ?? 0,
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
+                  'accepted'
+              ? () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => StructuredCompatibilityChatScreen(
+                        matchedUserName:
+                            (profile['full_name'] as String? ??
+                                    'Nikah Link member')
+                                .trim(),
+                        matchInterestId:
+                            profile['match_interest_id'] as int? ?? 0,
+                      ),
+                    ),
+                  );
+                }
+              : null,
           onViewProfile: () async {
             final result = await Navigator.of(context).push<String>(
               MaterialPageRoute(
@@ -1104,7 +1096,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               MaterialPageRoute(
                 builder: (_) => MessagingScreen(
                   matchedUserName:
-                      (entry['full_name'] as String? ?? 'Nikah Link member').trim(),
+                      (entry['full_name'] as String? ?? 'Nikah Link member')
+                          .trim(),
                   matchInterestId: entry['match_interest_id'] as int? ?? 0,
                 ),
               ),
@@ -1121,7 +1114,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
 
     final profile = _currentUserProfile;
-    final fullName = (profile['full_name'] as String? ?? 'Nikah Link member').trim();
+    final fullName = (profile['full_name'] as String? ?? 'Nikah Link member')
+        .trim();
     final email = (profile['email'] as String? ?? '').trim();
     final phone = (profile['phone_number'] as String? ?? '').trim();
     final location = (profile['location'] as String? ?? '').trim();
@@ -1155,15 +1149,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 CircleAvatar(
                   radius: 44,
                   backgroundColor: const Color(0xffeef2ed),
-                  backgroundImage: photoBytes == null ? null : MemoryImage(photoBytes),
+                  backgroundImage: photoBytes == null
+                      ? null
+                      : MemoryImage(photoBytes),
                   child: photoBytes == null
-                      ? Text(
-                          fullName.isEmpty ? '?' : fullName[0].toUpperCase(),
-                          style: const TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                          ),
+                      ? const Icon(
+                          Iconsax.user,
+                          color: AppColors.primaryGreen,
+                          size: 40,
                         )
                       : null,
                 ),
@@ -1229,41 +1222,40 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             title: 'Account Info',
             children: [
               _ProfileInfoRow(
-                icon: Icons.mail_outline_rounded,
+                icon: Iconsax.sms,
                 label: 'Email',
                 value: email.isEmpty ? 'Not added yet' : email,
               ),
               _ProfileInfoRow(
-                icon: Icons.call_outlined,
+                icon: Iconsax.call,
                 label: 'Phone',
                 value: phone.isEmpty ? 'Not added yet' : phone,
               ),
               _ProfileInfoRow(
-                icon: Icons.school_outlined,
+                icon: Iconsax.teacher,
                 label: 'Education',
                 value: education.isEmpty ? 'Not added yet' : education,
               ),
               _ProfileInfoRow(
-                icon: Icons.work_outline_rounded,
+                icon: Iconsax.briefcase,
                 label: 'Occupation',
                 value: occupation.isEmpty ? 'Not added yet' : occupation,
               ),
               _ProfileInfoRow(
-                icon: Icons.language_rounded,
+                icon: Iconsax.language_square,
                 label: 'Languages',
                 value: languages.isEmpty ? 'Not added yet' : languages,
               ),
             ],
           ),
           const SizedBox(height: 16),
-        _ProfileSectionCard(
+          _ProfileSectionCard(
             title: 'Theme',
             children: [
               _ProfileActionRow(
-                icon: Icons.light_mode_outlined,
+                icon: Iconsax.moon,
                 label: 'App Theme',
-                subtitle:
-                    _themeLabel(AppSettingsController.instance.themeMode),
+                subtitle: _themeLabel(AppSettingsController.instance.themeMode),
                 onTap: _showThemeSettings,
               ),
             ],
@@ -1273,7 +1265,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             title: 'Chat Theme',
             children: [
               _ProfileActionRow(
-                icon: Icons.chat_bubble_outline_rounded,
+                icon: Iconsax.messages_2,
                 label: 'Chat Appearance',
                 subtitle:
                     '${AppSettingsController.instance.chatFontSize.toStringAsFixed(1)} pt • ${_chatBackgroundLabel(AppSettingsController.instance.chatBackgroundStyle)} background',
@@ -1286,7 +1278,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             title: 'Settings',
             children: [
               _ProfileActionRow(
-                icon: Icons.notifications_none_rounded,
+                icon: Iconsax.notification,
                 label: 'Notifications',
                 subtitle: _notificationLabel(
                   AppSettingsController.instance.notificationsEnabled,
@@ -1294,13 +1286,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 onTap: _showNotificationSettings,
               ),
               _ProfileActionRow(
-                icon: Icons.lock_outline_rounded,
+                icon: Iconsax.lock,
                 label: 'Privacy & Safety',
                 subtitle: _privacyLabel(AppSettingsController.instance),
                 onTap: _showPrivacySettings,
               ),
               _ProfileActionRow(
-                icon: Icons.help_outline_rounded,
+                icon: Iconsax.support,
                 label: 'Help & Support',
                 subtitle: 'Support contact and guidance',
                 onTap: _showHelpSupport,
@@ -1321,13 +1313,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   (route) => false,
                 );
               },
-              icon: const Icon(Icons.logout_rounded),
+              icon: const Icon(Iconsax.logout_1),
               label: const Text(
                 'Logout',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryGreen,
@@ -1344,7 +1333,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
     );
   }
-
 }
 
 class _HeaderCircleButton extends StatelessWidget {
@@ -1373,9 +1361,7 @@ class _HeaderCircleButton extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Center(
-              child: Icon(icon, color: const Color(0xff2f3b38)),
-            ),
+            Center(child: Icon(icon, color: const Color(0xff2f3b38))),
             if (badgeCount > 0)
               Positioned(
                 right: -1,
@@ -1408,21 +1394,139 @@ class _HeaderCircleButton extends StatelessWidget {
   }
 }
 
+class _ProfileSearchDelegate extends SearchDelegate<Map<String, dynamic>?> {
+  _ProfileSearchDelegate({required List<Map<String, dynamic>> profiles})
+    : _profiles = profiles;
+
+  final List<Map<String, dynamic>> _profiles;
+
+  @override
+  String get searchFieldLabel => 'Search by name';
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      if (query.isNotEmpty)
+        IconButton(
+          onPressed: () {
+            query = '';
+          },
+          icon: const Icon(Icons.close_rounded),
+        ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      onPressed: () => close(context, null),
+      icon: const Icon(Icons.arrow_back_rounded),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildMatches(context);
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildMatches(context);
+  }
+
+  Widget _buildMatches(BuildContext context) {
+    final normalizedQuery = query.trim().toLowerCase();
+    final matches = normalizedQuery.isEmpty
+        ? _profiles
+        : _profiles.where((profile) {
+            final fullName = (profile['full_name'] as String? ?? '')
+                .trim()
+                .toLowerCase();
+            return fullName.contains(normalizedQuery);
+          }).toList();
+
+    if (matches.isEmpty) {
+      return const Center(
+        child: Text(
+          'No matching profile found.',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: Color(0xff6b7378),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+      itemCount: matches.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final profile = matches[index];
+        final fullName =
+            (profile['full_name'] as String? ?? 'Nikah Link member').trim();
+        final location = (profile['location'] as String? ?? '').trim();
+        final occupation = (profile['occupation'] as String? ?? '').trim();
+
+        return Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          child: ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            leading: CircleAvatar(
+              backgroundColor: const Color(0xffeef2ed),
+              child: Text(
+                fullName.isEmpty ? '?' : fullName[0].toUpperCase(),
+                style: const TextStyle(
+                  color: AppColors.primaryGreen,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            title: Text(
+              fullName,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Color(0xff18201e),
+              ),
+            ),
+            subtitle: Text(
+              location.isNotEmpty
+                  ? location
+                  : occupation.isNotEmpty
+                  ? occupation
+                  : 'Nikah Link community',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xff6b7378),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: const Icon(
+              Iconsax.arrow_right_3,
+              color: Color(0xff9aa39f),
+            ),
+            onTap: () => close(context, profile),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _DiscoverListCard extends StatelessWidget {
   const _DiscoverListCard({
     required this.profile,
     required this.headline,
-    required this.subtitle,
-    required this.highlights,
-    required this.about,
     required this.onViewProfile,
   });
 
   final Map<String, dynamic> profile;
   final String headline;
-  final String subtitle;
-  final List<String> highlights;
-  final String about;
   final VoidCallback onViewProfile;
 
   @override
@@ -1430,19 +1534,22 @@ class _DiscoverListCard extends StatelessWidget {
     final profilePhotoBase64 =
         (profile['profile_photo_base64'] as String? ?? '').trim();
     final profilePhotoBytes = _decodePhoto(profilePhotoBase64);
-    final relationshipStatus =
-        (profile['relationship_status'] as String? ?? '').trim();
-    final statusLabel = relationshipStatus == 'accepted' ? 'Accepted' : 'Sent';
+    final canViewPhoto = profile['can_view_photo'] as bool? ?? false;
+    final relationshipStatus = (profile['relationship_status'] as String? ?? '')
+        .trim();
+    final statusLabel = relationshipStatus == 'accepted'
+        ? 'Accepted'
+        : 'Sent interest';
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: const [
           BoxShadow(
             color: Color.fromRGBO(29, 53, 39, 0.08),
-            blurRadius: 24,
-            offset: Offset(0, 10),
+            blurRadius: 18,
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -1450,23 +1557,16 @@ class _DiscoverListCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(28),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             child: Stack(
               children: [
                 SizedBox(
-                  height: 260,
+                  height: 180,
                   width: double.infinity,
-                  child: profilePhotoBytes == null
-                      ? Image.asset(
-                          'lib/assets/images/Mosque Skyline 3.png',
-                          fit: BoxFit.cover,
-                        )
-                      : Image.memory(
-                          profilePhotoBytes,
-                          fit: BoxFit.cover,
-                        ),
+                  child: Image.asset(
+                    'lib/assets/images/Mosque Skyline 3.png',
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 Positioned.fill(
                   child: DecoratedBox(
@@ -1479,6 +1579,37 @@ class _DiscoverListCard extends StatelessWidget {
                           const Color.fromRGBO(0, 0, 0, 0.22),
                         ],
                       ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 18,
+                  top: 34,
+                  child: Container(
+                    width: 86,
+                    height: 86,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color.fromRGBO(17, 24, 39, 0.12),
+                          blurRadius: 16,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: canViewPhoto && profilePhotoBytes != null
+                          ? Image.memory(profilePhotoBytes, fit: BoxFit.cover)
+                          : const Center(
+                              child: Icon(
+                                Iconsax.user,
+                                color: AppColors.primaryGreen,
+                                size: 44,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -1508,72 +1639,19 @@ class _DiscoverListCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   headline,
                   style: const TextStyle(
-                    fontSize: 26,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: Color(0xff18201e),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xff6b7378),
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: highlights.map((item) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color.fromRGBO(1, 68, 51, 0.08),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        item,
-                        style: const TextStyle(
-                          color: AppColors.primaryGreen,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'About me',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xff18201e),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  about,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Color(0xff576066),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
@@ -1582,9 +1660,9 @@ class _DiscoverListCard extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.primaryGreen,
                           side: const BorderSide(color: Color(0xffd5dfd6)),
-                          minimumSize: const Size.fromHeight(56),
+                          minimumSize: const Size.fromHeight(50),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         child: const Text(
@@ -1600,10 +1678,10 @@ class _DiscoverListCard extends StatelessWidget {
                     Expanded(
                       child: relationshipStatus.isNotEmpty
                           ? Container(
-                              height: 56,
+                              height: 50,
                               decoration: BoxDecoration(
                                 color: const Color.fromRGBO(1, 68, 51, 0.08),
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               alignment: Alignment.center,
                               child: Text(
@@ -1659,48 +1737,55 @@ class _BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(28, 39, 33, 0.07),
-            blurRadius: 18,
-            offset: Offset(0, 8),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color.fromRGBO(255, 255, 255, 0.22),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: const Color.fromRGBO(255, 255, 255, 0.42),
+            ),
+            boxShadow: const [],
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(
-            icon: Icons.travel_explore_rounded,
-            label: 'Discover',
-            active: selectedIndex == 0,
-            onTap: () => onTap(0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Iconsax.discover,
+                activeIcon: Iconsax.discover_copy,
+                label: 'Discover',
+                active: selectedIndex == 0,
+                onTap: () => onTap(0),
+              ),
+              _NavItem(
+                icon: Iconsax.heart,
+                activeIcon: Iconsax.heart_copy,
+                label: 'Matches',
+                active: selectedIndex == 1,
+                badgeCount: matchCount,
+                onTap: () => onTap(1),
+              ),
+              _NavItem(
+                icon: Iconsax.messages_2,
+                activeIcon: Iconsax.messages_2_copy,
+                label: 'Chat',
+                active: selectedIndex == 2,
+                onTap: () => onTap(2),
+              ),
+              _NavItem(
+                icon: Iconsax.user,
+                activeIcon: Iconsax.user_copy,
+                label: 'Profile',
+                active: selectedIndex == 3,
+                onTap: () => onTap(3),
+              ),
+            ],
           ),
-          _NavItem(
-            icon: Icons.favorite_border_rounded,
-            label: 'Matches',
-            active: selectedIndex == 1,
-            badgeCount: matchCount,
-            onTap: () => onTap(1),
-          ),
-          _NavItem(
-            icon: Icons.chat_bubble_outline_rounded,
-            label: 'Chat',
-            active: selectedIndex == 2,
-            onTap: () => onTap(2),
-          ),
-          _NavItem(
-            icon: Icons.person_outline_rounded,
-            label: 'Profile',
-            active: selectedIndex == 3,
-            onTap: () => onTap(3),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1709,6 +1794,7 @@ class _BottomNavBar extends StatelessWidget {
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
+    required this.activeIcon,
     required this.label,
     this.active = false,
     this.badgeCount = 0,
@@ -1716,6 +1802,7 @@ class _NavItem extends StatelessWidget {
   });
 
   final IconData icon;
+  final IconData activeIcon;
   final String label;
   final bool active;
   final int badgeCount;
@@ -1723,7 +1810,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.primaryGreen : const Color(0xff868e94);
+    final color = active ? AppColors.primaryGreen : Colors.black;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -1735,7 +1822,7 @@ class _NavItem extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(icon, color: color, size: 22),
+                Icon(active ? activeIcon : icon, color: color, size: 22),
                 if (badgeCount > 0)
                   Positioned(
                     right: -10,
@@ -1932,19 +2019,19 @@ class _MatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fullName =
-        (profile['full_name'] as String? ?? 'Nikah Link member').trim();
+    final fullName = (profile['full_name'] as String? ?? 'Nikah Link member')
+        .trim();
     final location = (profile['location'] as String? ?? '').trim();
     final occupation = (profile['occupation'] as String? ?? '').trim();
     final education = (profile['education'] as String? ?? '').trim();
     final profilePhotoBase64 =
         (profile['profile_photo_base64'] as String? ?? '').trim();
     final profilePhotoBytes = _decodePhoto(profilePhotoBase64);
-    final relationshipStatus =
-        (profile['relationship_status'] as String? ?? '').trim();
+    final relationshipStatus = (profile['relationship_status'] as String? ?? '')
+        .trim();
     final statusLabel = switch (relationshipStatus) {
       'accepted' => 'Accepted',
-      'pending_sent' => 'Sent',
+      'pending_sent' => 'Sent interest',
       _ => 'New interest',
     };
     final isPendingReceived = relationshipStatus == 'pending_received';
@@ -1977,8 +2064,9 @@ class _MatchCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: const Color(0xffeef2ed),
-                  backgroundImage:
-                      profilePhotoBytes == null ? null : MemoryImage(profilePhotoBytes),
+                  backgroundImage: profilePhotoBytes == null
+                      ? null
+                      : MemoryImage(profilePhotoBytes),
                   child: profilePhotoBytes == null
                       ? Text(
                           fullName.isEmpty ? '?' : fullName[0].toUpperCase(),
@@ -2161,18 +2249,15 @@ class _MatchCard extends StatelessWidget {
 }
 
 class _ChatListCard extends StatelessWidget {
-  const _ChatListCard({
-    required this.profile,
-    required this.onOpenChat,
-  });
+  const _ChatListCard({required this.profile, required this.onOpenChat});
 
   final Map<String, dynamic> profile;
   final VoidCallback onOpenChat;
 
   @override
   Widget build(BuildContext context) {
-    final fullName =
-        (profile['full_name'] as String? ?? 'Nikah Link member').trim();
+    final fullName = (profile['full_name'] as String? ?? 'Nikah Link member')
+        .trim();
     final location = (profile['location'] as String? ?? '').trim();
     final profilePhotoBase64 =
         (profile['profile_photo_base64'] as String? ?? '').trim();
@@ -2191,12 +2276,16 @@ class _ChatListCard extends StatelessWidget {
         ],
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 12,
+        ),
         leading: CircleAvatar(
           radius: 28,
           backgroundColor: const Color(0xffeef2ed),
-          backgroundImage:
-              profilePhotoBytes == null ? null : MemoryImage(profilePhotoBytes),
+          backgroundImage: profilePhotoBytes == null
+              ? null
+              : MemoryImage(profilePhotoBytes),
           child: profilePhotoBytes == null
               ? Text(
                   fullName.isEmpty ? '?' : fullName[0].toUpperCase(),
@@ -2240,10 +2329,7 @@ class _ChatListCard extends StatelessWidget {
 }
 
 class _ProfileSectionCard extends StatelessWidget {
-  const _ProfileSectionCard({
-    required this.title,
-    required this.children,
-  });
+  const _ProfileSectionCard({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -2399,10 +2485,7 @@ class _ProfileActionRow extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xff9aa39f),
-            ),
+            const Icon(Iconsax.arrow_right_3, color: Color(0xff9aa39f)),
           ],
         ),
       ),
@@ -2432,10 +2515,10 @@ class _ThemeChoiceTile extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xffedf6ef) : const Color(0xfffaf7f0),
+          color: selected ? const Color(0xffedf6ef) : const Color(0xfff2f4f7),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? AppColors.primaryGreen : const Color(0xffddd8cc),
+            color: selected ? AppColors.primaryGreen : const Color(0xffd6dde3),
           ),
         ),
         child: Row(
@@ -2471,7 +2554,9 @@ class _ThemeChoiceTile extends StatelessWidget {
               selected
                   ? Icons.radio_button_checked_rounded
                   : Icons.radio_button_off_rounded,
-              color: selected ? AppColors.primaryGreen : const Color(0xff9aa39f),
+              color: selected
+                  ? AppColors.primaryGreen
+                  : const Color(0xff9aa39f),
             ),
           ],
         ),

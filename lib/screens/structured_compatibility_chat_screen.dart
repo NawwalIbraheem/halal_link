@@ -215,7 +215,7 @@ class _StructuredCompatibilityChatScreenState
   Widget build(BuildContext context) {
     if (_isLoadingSavedProgress) {
       return const Scaffold(
-        backgroundColor: Color(0xfffaf7f0),
+        backgroundColor: Color(0xfff2f4f7),
         body: SafeArea(
           child: Center(
             child: CircularProgressIndicator(),
@@ -420,7 +420,7 @@ class _StructuredCompatibilityChatScreenState
                                           _selectedOption = option;
                                         });
                                       },
-                                      backgroundColor: const Color(0xfffbf8ef),
+                                      backgroundColor: const Color(0xffeef2f5),
                                       selectedColor: const Color(0xffe0f1e4),
                                       side: BorderSide(
                                         color: isSelected
@@ -1031,9 +1031,9 @@ class _AnswerComparisonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xfffaf7f0),
+        color: const Color(0xfff2f4f7),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xffebe5d8)),
+        border: Border.all(color: const Color(0xffdfe5ea)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1225,7 +1225,7 @@ class _ReflectionCard extends StatelessWidget {
                 label: Text(option),
                 selected: isSelected,
                 onSelected: (_) => onChanged(option),
-                backgroundColor: const Color(0xfffbf8ef),
+                backgroundColor: const Color(0xffeef2f5),
                 selectedColor: const Color(0xffe0f1e4),
                 side: BorderSide(
                   color: isSelected

@@ -226,7 +226,7 @@ class _LegalSectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xffe5e1d8)),
+        border: Border.all(color: const Color(0xffdfe5ea)),
         boxShadow: const [
           BoxShadow(
             color: Color.fromRGBO(15, 33, 24, 0.04),

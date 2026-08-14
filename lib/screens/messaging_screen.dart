@@ -185,7 +185,7 @@ class _MessagingScreenState extends State<MessagingScreen> {
 
     Color topBarColor(ChatBackgroundStyle style) {
       return switch (style) {
-        ChatBackgroundStyle.warm => const Color(0xfff6f1e8),
+        ChatBackgroundStyle.warm => const Color(0xffebeff3),
         ChatBackgroundStyle.light => const Color(0xffffffff),
         ChatBackgroundStyle.sage => const Color(0xfff1f6ef),
         ChatBackgroundStyle.dark => const Color(0xff1a2320),

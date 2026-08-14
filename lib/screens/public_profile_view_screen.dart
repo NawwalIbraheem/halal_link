@@ -472,7 +472,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 ),
                               ),
                               const SizedBox(height: 18),
-                              const Divider(color: Color(0xffe9e3d9), height: 1),
+                              const Divider(color: Color(0xffdfe5ea), height: 1),
                               const SizedBox(height: 18),
                               const Text(
                                 'Islamic profile',
@@ -502,7 +502,7 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                 multiline: true,
                               ),
                               const SizedBox(height: 18),
-                              const Divider(color: Color(0xffe9e3d9), height: 1),
+                              const Divider(color: Color(0xffdfe5ea), height: 1),
                               const SizedBox(height: 18),
                               const Text(
                                 'Education & career',
@@ -713,7 +713,9 @@ class _PublicProfileViewScreenState extends State<PublicProfileViewScreen> {
                                                     ),
                                                   )
                                                 : Text(
-                                                    isSent ? 'Sent' : 'Send interest',
+                                                    isSent
+                                                        ? 'Sent interest'
+                                                        : 'Send interest',
                                                     style: TextStyle(
                                                       fontSize: 16,
                                                       fontWeight:
@@ -893,7 +895,7 @@ class _SummaryPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xfff6f1e6),
+        color: const Color(0xffebeff3),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(

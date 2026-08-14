@@ -345,7 +345,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0xfffdfdfb), Color(0xfff7f4eb)],
+                  colors: [Color(0xfff4f6f8), Color(0xffeceff3)],
                 ),
               ),
               child: Stack(
@@ -851,11 +851,11 @@ class _AuthField extends StatelessWidget {
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xffdbd8cf)),
+          borderSide: const BorderSide(color: Color(0xffd6dde3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xffdbd8cf)),
+          borderSide: const BorderSide(color: Color(0xffd6dde3)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

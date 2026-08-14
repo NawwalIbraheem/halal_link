@@ -281,7 +281,7 @@ class _ProfileSetupMarriageExpectationsScreenState
                     child: const LinearProgressIndicator(
                       value: 0.75,
                       minHeight: 6,
-                      backgroundColor: Color(0xffddd8cb),
+                      backgroundColor: Color(0xffd6dde3),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         AppColors.primaryGreen,
                       ),
@@ -345,7 +345,7 @@ class _ProfileSetupMarriageExpectationsScreenState
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(color: Color(0xffe1dccf)),
+                        borderSide: const BorderSide(color: Color(0xffdbe2e8)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
@@ -497,15 +497,15 @@ class _DropdownCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(0xfff4efe4),
+        color: const Color(0xffebeff3),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffd9d1c0)),
+        border: Border.all(color: const Color(0xffd6dde3)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          dropdownColor: const Color(0xfff4efe4),
+          dropdownColor: const Color(0xffebeff3),
           borderRadius: BorderRadius.circular(16),
           icon: const Icon(
             Icons.keyboard_arrow_down_rounded,
@@ -560,7 +560,7 @@ class _ChoiceChipButton extends StatelessWidget {
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppColors.primaryGreen : const Color(0xffe1dccf),
+            color: selected ? AppColors.primaryGreen : const Color(0xffdbe2e8),
           ),
         ),
         child: Text(
